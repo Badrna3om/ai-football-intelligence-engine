@@ -27,6 +27,10 @@ flowchart LR
     H --> I[n8n Chat]
 ```
 
+## Workflow Overview
+
+![AI Football Intelligence Engine workflow](workflow-overview.png)
+
 ## Example Input
 
 ```text
@@ -38,6 +42,16 @@ or:
 ```text
 1234567
 ```
+
+## Example Outputs
+
+### Post-Match Intelligence Report
+
+![Post-match intelligence report](post-match-intelligence-report.png)
+
+### Multi-Platform Content Package
+
+![Multi-platform sports content package](multi-platform-content-package.png)
 
 ## Output Modules
 
