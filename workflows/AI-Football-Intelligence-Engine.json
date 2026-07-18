@@ -1,0 +1,239 @@
+{
+  "name": "AI Football Intelligence Engine - Public",
+  "nodes": [
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -160,
+        608
+      ],
+      "id": "4fca2c35-bf4b-4f3d-9b52-e29e0449b83b",
+      "name": "When chat message received",
+      "webhookId": "PUBLIC_WEBHOOK_ID"
+    },
+    {
+      "parameters": {
+        "jsCode": "const current = $input.first().json || {};\nconst API_KEY = String(current.apiFootballKey || '').trim();\n\nif (!API_KEY) {\n  throw new Error(\n    'مفتاح API-Football غير موجود. ضع المفتاح في حقل apiFootballKey داخل عقدة Load API Configuration.'\n  );\n}\n\nlet apiRequestCount = 0;\n\nconst input = String(\n  current.chatInput ||\n  current.message?.text ||\n  current.text ||\n  current.input ||\n  ''\n).trim();\n\nif (!input) {\n  throw new Error(\n    'أرسل Fixture ID أو اسم المباراة، مثل: Argentina vs France 2022-12-18'\n  );\n}\n\nconst base = 'https://v3.football.api-sports.io';\n\nconst headers = {\n  'x-apisports-key': API_KEY,\n  Accept: 'application/json'\n};\n\nfunction buildQuery(qs = {}) {\n  const entries = Object.entries(qs).filter(\n    ([_, value]) =>\n      value !== undefined &&\n      value !== null &&\n      value !== ''\n  );\n\n  if (!entries.length) {\n    return '';\n  }\n\n  return (\n    '?' +\n    entries\n      .map(\n        ([key, value]) =>\n          `${encodeURIComponent(key)}=${encodeURIComponent(value)}`\n      )\n      .join('&')\n  );\n}\n\nasync function get(path, qs = {}) {\n  apiRequestCount += 1;\n\n  const url = `${base}${path}${buildQuery(qs)}`;\n\n  const res = await this.helpers.httpRequest({\n    method: 'GET',\n    url,\n    headers,\n    json: true,\n    timeout: 60000,\n    returnFullResponse: true,\n    ignoreHttpStatusErrors: true\n  });\n\n  const body = res.body || {};\n\n  if (body.errors && Object.keys(body.errors).length) {\n    throw new Error(\n      `API-Football أعاد خطأ عند طلب ${path}: ${JSON.stringify(body.errors)}`\n    );\n  }\n\n  return {\n    ok: res.statusCode >= 200 && res.statusCode < 300,\n    statusCode: res.statusCode,\n    url,\n    body\n  };\n}\n\nfunction parseTeams(text) {\n  const cleaned = text\n    .replace(/×/g, ' vs ')\n    .replace(/\\s+ضد\\s+/g, ' vs ')\n    .replace(/\\s+-\\s+/g, ' vs ');\n\n  const parts = cleaned\n    .split(/\\s+vs\\s+/i)\n    .map(value => value.trim())\n    .filter(Boolean);\n\n  if (parts.length !== 2) {\n    return null;\n  }\n\n  return {\n    teamA: parts[0],\n    teamB: parts[1]\n  };\n}\n\nasync function findTeamId(name) {\n  const aliases = {\n    psg: 'Paris Saint Germain',\n    'paris saint-germain': 'Paris Saint Germain',\n    'paris saint germain': 'Paris Saint Germain',\n    'man city': 'Manchester City',\n    'man united': 'Manchester United',\n    'man utd': 'Manchester United',\n    bayern: 'Bayern Munich'\n  };\n\n  const normalizedName = name.toLowerCase().trim();\n  const searchName = aliases[normalizedName] || name;\n\n  const res = await get.call(this, '/teams', {\n    search: searchName\n  });\n\n  if (!res.ok) {\n    throw new Error(\n      `فشل البحث عن الفريق ${name}. API status: ${res.statusCode}`\n    );\n  }\n\n  const teams = res.body?.response || [];\n\n  if (!teams.length) {\n    throw new Error(`لم أجد الفريق: ${name}`);\n  }\n\n  const exactMatches = teams.filter(\n    item =>\n      item.team?.name?.toLowerCase() === searchName.toLowerCase()\n  );\n\n  if (exactMatches.length === 1) {\n    return {\n      id: exactMatches[0].team.id,\n      name: exactMatches[0].team.name,\n      country: exactMatches[0].team.country || null\n    };\n  }\n\n  const partialMatches = teams.filter(item =>\n    item.team?.name\n      ?.toLowerCase()\n      .includes(searchName.toLowerCase())\n  );\n\n  if (partialMatches.length === 1) {\n    return {\n      id: partialMatches[0].team.id,\n      name: partialMatches[0].team.name,\n      country: partialMatches[0].team.country || null\n    };\n  }\n\n  const candidates = (\n    partialMatches.length ? partialMatches : teams\n  )\n    .slice(0, 5)\n    .map(\n      item =>\n        `${item.team?.name} (${item.team?.country || 'country unavailable'})`\n    )\n    .join('، ');\n\n  throw new Error(\n    `اسم الفريق غير محدد بما يكفي: ${name}. النتائج المحتملة: ${candidates}`\n  );\n}\n\nasync function resolveFixtureId() {\n  const dateMatch = input.match(\n    /\\b(20\\d{2}-\\d{2}-\\d{2})\\b/\n  )?.[1];\n\n  const inputWithoutDate = input\n    .replace(/\\b20\\d{2}-\\d{2}-\\d{2}\\b/g, '')\n    .trim();\n\n  const directId = inputWithoutDate.match(\n    /^\\s*(\\d{4,10})\\s*$/\n  )?.[1];\n\n  if (directId) {\n    return {\n      fixtureId: directId,\n      resolvedBy: 'direct_fixture_id',\n      requestedDate: null,\n      detectedTeams: null,\n      selectedFixture: null\n    };\n  }\n\n  const teams = parseTeams(inputWithoutDate);\n\n  if (!teams) {\n    throw new Error(\n      'اكتب المباراة بهذا الشكل: Argentina vs France 2022-12-18، أو أرسل Fixture ID فقط.'\n    );\n  }\n\n  const teamA = await findTeamId.call(\n    this,\n    teams.teamA\n  );\n\n  const teamB = await findTeamId.call(\n    this,\n    teams.teamB\n  );\n\n  let selected = null;\n\n  if (dateMatch) {\n    const fixturesRes = await get.call(\n      this,\n      '/fixtures',\n      {\n        date: dateMatch,\n        team: teamA.id\n      }\n    );\n\n    if (!fixturesRes.ok) {\n      throw new Error(\n        `فشل البحث عن مباريات تاريخ ${dateMatch}. API status: ${fixturesRes.statusCode}`\n      );\n    }\n\n    const fixtures =\n      fixturesRes.body?.response || [];\n\n    selected = fixtures.find(fixture => {\n      const homeId =\n        fixture.teams?.home?.id;\n\n      const awayId =\n        fixture.teams?.away?.id;\n\n      return (\n        (homeId === teamA.id &&\n          awayId === teamB.id) ||\n        (homeId === teamB.id &&\n          awayId === teamA.id)\n      );\n    });\n  }\n\n  if (!selected && dateMatch) {\n    throw new Error(\n      `لم أجد المباراة بين ${teamA.name} و${teamB.name} بتاريخ ${dateMatch}. لن يتم اختيار مباراة مختلفة تلقائيًا.`\n    );\n  }\n\n  if (!selected) {\n    const h2hRes = await get.call(\n      this,\n      '/fixtures/headtohead',\n      {\n        h2h: `${teamA.id}-${teamB.id}`\n      }\n    );\n\n    if (!h2hRes.ok) {\n      throw new Error(\n        `فشل البحث في سجل المواجهات. API status: ${h2hRes.statusCode}`\n      );\n    }\n\n    const fixtures =\n      h2hRes.body?.response || [];\n\n    if (!fixtures.length) {\n      throw new Error(\n        `لم أجد مباريات بين ${teamA.name} و${teamB.name}`\n      );\n    }\n\n    fixtures.sort(\n      (a, b) =>\n        new Date(\n          b.fixture?.date || 0\n        ).getTime() -\n        new Date(\n          a.fixture?.date || 0\n        ).getTime()\n    );\n\n    selected =\n      fixtures.find(fixture =>\n        ['FT', 'AET', 'PEN'].includes(\n          fixture.fixture?.status?.short\n        )\n      ) || fixtures[0];\n  }\n\n  if (!selected?.fixture?.id) {\n    throw new Error(\n      'لم أتمكن من العثور على Fixture ID للمباراة.'\n    );\n  }\n\n  return {\n    fixtureId: String(selected.fixture.id),\n\n    resolvedBy: dateMatch\n      ? 'team_names_with_date'\n      : 'team_names_h2h',\n\n    requestedDate: dateMatch || null,\n\n    detectedTeams: {\n      teamA,\n      teamB\n    },\n\n    selectedFixture: {\n      id: selected.fixture.id,\n      date: selected.fixture.date,\n      timestamp:\n        selected.fixture.timestamp || null,\n      timezone:\n        selected.fixture.timezone || null,\n      status:\n        selected.fixture.status?.long || null,\n      statusShort:\n        selected.fixture.status?.short || null,\n      leagueId:\n        selected.league?.id || null,\n      league:\n        selected.league?.name || null,\n      season:\n        selected.league?.season || null,\n      round:\n        selected.league?.round || null,\n      homeId:\n        selected.teams?.home?.id || null,\n      home:\n        selected.teams?.home?.name || null,\n      awayId:\n        selected.teams?.away?.id || null,\n      away:\n        selected.teams?.away?.name || null,\n      score: `${selected.goals?.home ?? '-'} - ${selected.goals?.away ?? '-'}`\n    }\n  };\n}\n\nconst resolved =\n  await resolveFixtureId.call(this);\n\nconst fixtureId = resolved.fixtureId;\n\nconst [\n  fixtureRes,\n  statsRes,\n  eventsRes,\n  lineupsRes,\n  playersRes\n] = await Promise.all([\n  get.call(this, '/fixtures', {\n    id: fixtureId\n  }),\n\n  get.call(this, '/fixtures/statistics', {\n    fixture: fixtureId\n  }),\n\n  get.call(this, '/fixtures/events', {\n    fixture: fixtureId\n  }),\n\n  get.call(this, '/fixtures/lineups', {\n    fixture: fixtureId\n  }),\n\n  get.call(this, '/fixtures/players', {\n    fixture: fixtureId\n  })\n]);\n\nconst fixture =\n  fixtureRes.body?.response?.[0];\n\nif (!fixture) {\n  return [\n    {\n      json: {\n        success: false,\n        fixtureId,\n        message:\n          'تم تحديد Fixture ID، لكن لم تُرجع API بيانات المباراة.',\n        resolved,\n        apiUsage: {\n          requestCount: apiRequestCount\n        },\n        debug: fixtureRes.body\n      }\n    }\n  ];\n}\n\n/*\n * سجل موحد للاعبين.\n * يستخدم Player ID باعتباره الهوية الأساسية.\n * إذا توفر أكثر من اسم للاعب نفسه، يتم اختيار الاسم الأطول.\n */\nconst playerRegistry = new Map();\n\nfunction registerPlayer(player) {\n  const id = player?.id;\n  const name = String(\n    player?.name || ''\n  ).trim();\n\n  if (\n    id === undefined ||\n    id === null\n  ) {\n    return;\n  }\n\n  const key = String(id);\n  const existing =\n    playerRegistry.get(key);\n\n  if (\n    !existing ||\n    name.length >\n      String(existing.name || '').length\n  ) {\n    playerRegistry.set(key, {\n      id,\n      name: name || existing?.name || null\n    });\n  }\n}\n\nfor (\n  const lineup of\n  lineupsRes.body?.response || []\n) {\n  for (\n    const item of\n    lineup.startXI || []\n  ) {\n    registerPlayer(item.player);\n  }\n\n  for (\n    const item of\n    lineup.substitutes || []\n  ) {\n    registerPlayer(item.player);\n  }\n}\n\nfor (\n  const teamBlock of\n  playersRes.body?.response || []\n) {\n  for (\n    const item of\n    teamBlock.players || []\n  ) {\n    registerPlayer(item.player);\n  }\n}\n\nfor (\n  const event of\n  eventsRes.body?.response || []\n) {\n  registerPlayer(event.player);\n  registerPlayer(event.assist);\n}\n\nfunction resolvePlayer(player) {\n  if (!player) {\n    return {\n      id: null,\n      name: null,\n      label: null\n    };\n  }\n\n  const id =\n    player.id ?? null;\n\n  const registered =\n    id !== null\n      ? playerRegistry.get(String(id))\n      : null;\n\n  const name =\n    registered?.name ||\n    player.name ||\n    null;\n\n  return {\n    id,\n    name,\n    label:\n      name && id !== null\n        ? `${name} [ID:${id}]`\n        : name\n  };\n}\n\nfunction compactStats(stats) {\n  return (stats || []).map(\n    teamBlock => ({\n      teamId:\n        teamBlock.team?.id || null,\n      team:\n        teamBlock.team?.name || null,\n\n      statistics: (\n        teamBlock.statistics || []\n      ).map(stat => ({\n        type: stat.type,\n        value: stat.value\n      }))\n    })\n  );\n}\n\nfunction compactEvents(events) {\n  return (events || []).map(\n    event => {\n      const player =\n        resolvePlayer(event.player);\n\n      const assist =\n        resolvePlayer(event.assist);\n\n      return {\n        time:\n          event.time?.elapsed ?? null,\n        extra:\n          event.time?.extra ?? null,\n\n        teamId:\n          event.team?.id || null,\n        team:\n          event.team?.name || null,\n\n        playerId: player.id,\n        playerName: player.name,\n        playerLabel: player.label,\n\n        assistId: assist.id,\n        assistName: assist.name,\n        assistLabel: assist.label,\n\n        type:\n          event.type || null,\n        detail:\n          event.detail || null,\n        comments:\n          event.comments || null\n      };\n    }\n  );\n}\n\nfunction compactLineups(lineups) {\n  return (lineups || []).map(\n    lineup => ({\n      teamId:\n        lineup.team?.id || null,\n      team:\n        lineup.team?.name || null,\n\n      formation:\n        lineup.formation || null,\n\n      coachId:\n        lineup.coach?.id || null,\n      coach:\n        lineup.coach?.name || null,\n\n      startXI: (\n        lineup.startXI || []\n      ).map(item => {\n        const player =\n          resolvePlayer(item.player);\n\n        return {\n          id: player.id,\n          name: player.name,\n          label: player.label,\n          number:\n            item.player?.number ?? null,\n          position:\n            item.player?.pos || null,\n          grid:\n            item.player?.grid || null\n        };\n      }),\n\n      substitutes: (\n        lineup.substitutes || []\n      ).map(item => {\n        const player =\n          resolvePlayer(item.player);\n\n        return {\n          id: player.id,\n          name: player.name,\n          label: player.label,\n          number:\n            item.player?.number ?? null,\n          position:\n            item.player?.pos || null\n        };\n      })\n    })\n  );\n}\n\nfunction compactPlayers(players) {\n  return (players || []).map(\n    teamBlock => ({\n      teamId:\n        teamBlock.team?.id || null,\n      team:\n        teamBlock.team?.name || null,\n\n      players: (\n        teamBlock.players || []\n      ).map(item => {\n        const player =\n          resolvePlayer(item.player);\n\n        const stats =\n          item.statistics?.[0] || {};\n\n        return {\n          id: player.id,\n          name: player.name,\n          label: player.label,\n\n          number:\n            stats.games?.number ?? null,\n          position:\n            stats.games?.position || null,\n          rating:\n            stats.games?.rating ?? null,\n          minutes:\n            stats.games?.minutes ?? null,\n\n          goals:\n            stats.goals?.total ?? null,\n          assists:\n            stats.goals?.assists ?? null,\n\n          shotsTotal:\n            stats.shots?.total ?? null,\n          shotsOn:\n            stats.shots?.on ?? null,\n\n          passesTotal:\n            stats.passes?.total ?? null,\n          passesKey:\n            stats.passes?.key ?? null,\n          passesAccuracy:\n            stats.passes?.accuracy ?? null,\n\n          tacklesTotal:\n            stats.tackles?.total ?? null,\n          interceptions:\n            stats.tackles?.interceptions ??\n            null,\n\n          duelsTotal:\n            stats.duels?.total ?? null,\n          duelsWon:\n            stats.duels?.won ?? null,\n\n          dribblesAttempts:\n            stats.dribbles?.attempts ??\n            null,\n          dribblesSuccess:\n            stats.dribbles?.success ??\n            null\n        };\n      })\n    })\n  );\n}\n\nconst matchDate =\n  fixture.fixture?.date || null;\n\nconst cleanMatchData = {\n  source: 'api-football',\n\n  input,\n\n  fixtureId:\n    String(fixture.fixture?.id || fixtureId),\n\n  date: matchDate,\n\n  dateOnly: matchDate\n    ? matchDate.slice(0, 10)\n    : null,\n\n  timestamp:\n    fixture.fixture?.timestamp || null,\n\n  timezone:\n    fixture.fixture?.timezone || null,\n\n  resolved,\n\n  match:\n    `${fixture.teams?.home?.name} vs ${fixture.teams?.away?.name}`,\n\n  homeTeamId:\n    fixture.teams?.home?.id || null,\n  homeTeam:\n    fixture.teams?.home?.name || null,\n\n  awayTeamId:\n    fixture.teams?.away?.id || null,\n  awayTeam:\n    fixture.teams?.away?.name || null,\n\n  score:\n    `${fixture.goals?.home ?? '-'} - ${fixture.goals?.away ?? '-'}`,\n\n  status:\n    fixture.fixture?.status?.long || null,\n\n  statusShort:\n    fixture.fixture?.status?.short || null,\n\n  elapsed:\n    fixture.fixture?.status?.elapsed ?? null,\n\n  leagueId:\n    fixture.league?.id || null,\n  league:\n    fixture.league?.name || null,\n\n  season:\n    fixture.league?.season || null,\n\n  country:\n    fixture.league?.country || null,\n\n  round:\n    fixture.league?.round || null,\n\n  venueId:\n    fixture.fixture?.venue?.id || null,\n\n  venue:\n    fixture.fixture?.venue?.name || null,\n\n  city:\n    fixture.fixture?.venue?.city || null,\n\n  referee:\n    fixture.fixture?.referee || null,\n\n  statistics: compactStats(\n    statsRes.body?.response\n  ),\n\n  events: compactEvents(\n    eventsRes.body?.response\n  ),\n\n  lineups: compactLineups(\n    lineupsRes.body?.response\n  ),\n\n  players: compactPlayers(\n    playersRes.body?.response\n  ),\n\n  apiUsage: {\n    requestCount: apiRequestCount\n  },\n\n  rawStatus: {\n    fixtureLoaded:\n      fixtureRes.ok,\n    statisticsLoaded:\n      statsRes.ok,\n    eventsLoaded:\n      eventsRes.ok,\n    lineupsLoaded:\n      lineupsRes.ok,\n    playersLoaded:\n      playersRes.ok,\n\n    statisticsCount:\n      statsRes.body?.response?.length || 0,\n    eventsCount:\n      eventsRes.body?.response?.length || 0,\n    lineupsCount:\n      lineupsRes.body?.response?.length || 0,\n    playersCount:\n      playersRes.body?.response?.length || 0\n  }\n};\n\nreturn [\n  {\n    json: {\n      success: true,\n\n      fixtureId:\n        cleanMatchData.fixtureId,\n\n      date:\n        cleanMatchData.date,\n\n      dateOnly:\n        cleanMatchData.dateOnly,\n\n      match:\n        cleanMatchData.match,\n\n      score:\n        cleanMatchData.score,\n\n      matchData:\n        cleanMatchData,\n\n      apiUsage: {\n        requestCount: apiRequestCount\n      }\n    }\n  }\n];"
+      },
+      "id": "57c5587d-33af-4d97-98a4-142ccfdcb90d",
+      "name": "Fetch API-Football Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        336,
+        608
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=أنت محلل كرة قدم محترف وصانع محتوى رياضي.\n\nاعتمد فقط على البيانات المرفقة.\n\nالبيانات:\n\n{{ $json.prompt }}\n\n━━━━━━━━━━━━━━━━━━━\nقواعد إلزامية\n━━━━━━━━━━━━━━━━━━━\n\n1- ممنوع اختراع أي رقم أو حدث أو اسم لاعب أو معلومة غير موجودة.\n\n2- إذا لم تتوفر معلومة في البيانات اكتب:\n\"غير متوفر في البيانات\"\n\n3- لا تستنتج تحركات تكتيكية غير مدعومة بالأرقام.\n\n4- فرّق دائماً بين:\n\n- حقائق مؤكدة من البيانات\n- فرضيات تكتيكية محتملة\n\n5- أي فكرة تكتيكية غير مثبتة بالأرقام يجب أن توضع تحت:\n\n\"فرضيات تكتيكية محتملة\"\n\nوليس كحقيقة.\n\n6- لا تستخدم أي معرفة خارجية عن الفرق أو المدربين أو اللاعبين.\n\n7- استخدم فقط أسماء اللاعبين الموجودة في البيانات.\n\n8- لا تذكر أي لاعب لم يظهر في البيانات.\n\n9- إذا كانت البيانات غير كافية للتحليل التكتيكي العميق اذكر ذلك بوضوح.\n\n10- ركز على:\nالاستحواذ\nالتمرير\nالتسديد\nالفرص\nالتشكيل\nالتبديلات\nالأهداف\nالبطاقات\nإحصائيات اللاعبين\n\n━━━━━━━━━━━━━━━━━━━\nالمطلوب\n━━━━━━━━━━━━━━━━━━━\n\nأخرج JSON فقط.\n\n{\n  \"data_quality\": {\n    \"confidence_score\": \"\",\n    \"available_sections\": [],\n    \"missing_sections\": [],\n    \"analysis_limitations\": []\n  },\n\n  \"executive_summary\": {\n    \"headline\": \"\",\n    \"short_summary\": \"\",\n    \"main_story\": \"\"\n  },\n\n  \"match_facts\": {\n    \"score\": \"\",\n    \"competition\": \"\",\n    \"key_events\": [],\n    \"important_numbers\": []\n  },\n\n  \"snap_video_material\": {\n    \"opening_hooks\": [],\n    \"match_flow_points\": [],\n    \"key_numbers_ordered\": [],\n    \"best_players\": [],\n    \"strong_closing_points\": []\n  },\n\n  \"factual_match_analysis\": {\n    \"formation_comparison\": [],\n    \"statistical_advantages\": [],\n    \"player_impacts\": [],\n    \"turning_points\": []\n  },\n\n  \"possible_tactical_hypotheses\": {\n    \"hypotheses\": [],\n    \"confidence_level\": \"\"\n  },\n\n  \"twitter_thread\": {\n    \"main_post\": \"\",\n    \"thread_points\": []\n  },\n\n  \"article_structure\": {\n    \"title\": \"\",\n    \"intro\": \"\",\n    \"sections\": []\n  },\n\n  \"tactical_image_prompts\": [\n    {\n      \"scene_title\": \"\",\n      \"purpose\": \"\",\n      \"confidence\": \"\",\n      \"prompt\": \"\"\n    }\n  ]\n}\n\n━━━━━━━━━━━━━━━━━━━\nشروط tactical_image_prompts\n━━━━━━━━━━━━━━━━━━━\n\nأنشئ 5 برومبتات منفصلة فقط.\n\nلكل برومبت:\n\n- Vertical 9:16\n- White Background\n- Clean 2D Football Pitch\n- Tactical Board Style\n- Professional Football Analysis Style\n- Use only players الموجودين في البيانات\n- Use arrows only when explicitly supported by the available event or lineup data\n- No invented arrows or movements\n- No invented movements\n- Explain one idea فقط في كل صورة\n\nالصورة 1:\nBasic Formation\n\nالصورة 2:\nVerified Key Players\n\nالصورة 3:\nTeam Statistics Comparison\n\nالصورة 4:\nKey Events Timeline\n\nالصورة 5:\nEvidence-Based Tactical Summary\n\n━━━━━━━━━━━━━━━━━━━\nالأولوية\n━━━━━━━━━━━━━━━━━━━\n\nالدقة أهم من الإبداع.\nإذا شككت في معلومة لا تكتبها.",
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        752,
+        608
+      ],
+      "id": "d4068cca-60cd-4dfd-9b59-c3212abdb0dc",
+      "name": "Generate Grounded Analysis"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-5-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        752,
+        784
+      ],
+      "id": "634e86d8-071a-41f0-b003-ef53b9d46630",
+      "name": "OpenAI Chat Model"
+    },
+    {
+      "parameters": {
+        "jsCode": "const match = $json.matchData;\n\nif (!match) {\n  throw new Error('matchData غير موجود. تأكد أن النود السابقة هي Fetch API-Football Data.');\n}\n\nconst allPlayers = [];\n\nfor (const team of match.players || []) {\n  for (const player of team.players || []) {\n    allPlayers.push({\n      team: team.team,\n      ...player,\n      id: player.id ?? null,\n      name: player.name || null,\n      label: player.label || (player.id ? `${player.name} [ID:${player.id}]` : player.name),\n      ratingNum: player.rating !== null && player.rating !== undefined ? Number(player.rating) : null\n    });\n  }\n}\n\nfunction num(value) {\n  if (value === null || value === undefined || value === '') return null;\n  const n = Number(value);\n  return Number.isFinite(n) ? n : null;\n}\n\nfunction topBy(field, limit = 5) {\n  return [...allPlayers]\n    .filter(p => num(p[field]) !== null)\n    .sort((a, b) => num(b[field]) - num(a[field]))\n    .slice(0, limit)\n    .map(p => ({\n      id: p.id,\n      name: p.name,\n      label: p.label,\n      team: p.team,\n      position: p.position,\n      number: p.number,\n      value: p[field],\n      rating: p.rating\n    }));\n}\n\nfunction getTeamStats(teamName) {\n  const block = (match.statistics || []).find(s => s.team === teamName);\n  const stats = {};\n\n  for (const item of block?.statistics || []) {\n    stats[item.type] = item.value;\n  }\n\n  return stats;\n}\n\nfunction statValue(teamName, key) {\n  const stats = getTeamStats(teamName);\n  return stats[key] ?? null;\n}\n\nfunction goals() {\n  return (match.events || [])\n    .filter(e => e.type === 'Goal')\n    .map(e => ({\n      minute: e.extra ? `${e.time}+${e.extra}` : e.time,\n      team: e.team,\n      scorerId: e.playerId ?? null,\n      scorerName: e.playerName || null,\n      scorerLabel: e.playerLabel || e.playerName || null,\n      assistId: e.assistId ?? null,\n      assistName: e.assistName || null,\n      assistLabel: e.assistLabel || e.assistName || null,\n      detail: e.detail\n    }));\n}\n\nfunction cards() {\n  return (match.events || [])\n    .filter(e => e.type === 'Card')\n    .map(e => ({\n      minute: e.extra ? `${e.time}+${e.extra}` : e.time,\n      team: e.team,\n      playerId: e.playerId ?? null,\n      playerName: e.playerName || null,\n      playerLabel: e.playerLabel || e.playerName || null,\n      detail: e.detail,\n      comments: e.comments\n    }));\n}\n\nfunction substitutions() {\n  return (match.events || [])\n    .filter(e => e.type === 'subst')\n    .map(e => ({\n      minute: e.extra ? `${e.time}+${e.extra}` : e.time,\n      team: e.team,\n      playerOutId: e.playerId ?? null,\n      playerOutName: e.playerName || null,\n      playerOutLabel: e.playerLabel || e.playerName || null,\n      playerInId: e.assistId ?? null,\n      playerInName: e.assistName || null,\n      playerInLabel: e.assistLabel || e.assistName || null,\n      detail: e.detail\n    }));\n}\n\nfunction lineups() {\n  return (match.lineups || []).map(l => ({\n    team: l.team,\n    formation: l.formation,\n    coach: l.coach,\n    startXI: (l.startXI || []).map(p => ({\n      id: p.id ?? null,\n      name: p.name,\n      label: p.label || (p.id ? `${p.name} [ID:${p.id}]` : p.name),\n      number: p.number,\n      position: p.position || p.pos || null,\n      grid: p.grid\n    })),\n    substitutes: (l.substitutes || []).map(p => ({\n      id: p.id ?? null,\n      name: p.name,\n      label: p.label || (p.id ? `${p.name} [ID:${p.id}]` : p.name),\n      number: p.number,\n      position: p.position || p.pos || null\n    }))\n  }));\n}\n\nfunction formationSummary() {\n  return (match.lineups || []).map(l => ({\n    team: l.team,\n    formation: l.formation,\n    coach: l.coach\n  }));\n}\n\nfunction teamComparison() {\n  const home = match.homeTeam;\n  const away = match.awayTeam;\n\n  return {\n    possession: {\n      [home]: statValue(home, 'Ball Possession'),\n      [away]: statValue(away, 'Ball Possession')\n    },\n    totalShots: {\n      [home]: statValue(home, 'Total Shots'),\n      [away]: statValue(away, 'Total Shots')\n    },\n    shotsOnGoal: {\n      [home]: statValue(home, 'Shots on Goal'),\n      [away]: statValue(away, 'Shots on Goal')\n    },\n    shotsInsideBox: {\n      [home]: statValue(home, 'Shots insidebox'),\n      [away]: statValue(away, 'Shots insidebox')\n    },\n    corners: {\n      [home]: statValue(home, 'Corner Kicks'),\n      [away]: statValue(away, 'Corner Kicks')\n    },\n    passes: {\n      [home]: statValue(home, 'Total passes'),\n      [away]: statValue(away, 'Total passes')\n    },\n    passAccuracy: {\n      [home]: statValue(home, 'Passes %'),\n      [away]: statValue(away, 'Passes %')\n    },\n    expectedGoals: {\n      [home]: statValue(home, 'expected_goals'),\n      [away]: statValue(away, 'expected_goals')\n    },\n    fouls: {\n      [home]: statValue(home, 'Fouls'),\n      [away]: statValue(away, 'Fouls')\n    },\n    yellowCards: {\n      [home]: statValue(home, 'Yellow Cards'),\n      [away]: statValue(away, 'Yellow Cards')\n    },\n    goalkeeperSaves: {\n      [home]: statValue(home, 'Goalkeeper Saves'),\n      [away]: statValue(away, 'Goalkeeper Saves')\n    }\n  };\n}\n\nfunction availableSections() {\n  const sections = [];\n  if (match.statistics?.length) sections.push('team_statistics');\n  if (match.events?.length) sections.push('events');\n  if (match.lineups?.length) sections.push('lineups');\n  if (match.players?.length) sections.push('player_statistics');\n  return sections;\n}\n\nfunction missingSections() {\n  const missing = [];\n  if (!match.statistics?.length) missing.push('team_statistics');\n  if (!match.events?.length) missing.push('events');\n  if (!match.lineups?.length) missing.push('lineups');\n  if (!match.players?.length) missing.push('player_statistics');\n  missing.push('attack_momentum');\n  missing.push('heatmaps');\n  missing.push('average_positions');\n  missing.push('pass_network');\n  missing.push('pressure_map');\n  return missing;\n}\n\nfunction dataQualityScore() {\n  let score = 0;\n  if (match.statistics?.length) score += 25;\n  if (match.events?.length) score += 25;\n  if (match.lineups?.length) score += 25;\n  if (match.players?.length) score += 25;\n  return `${score}/100`;\n}\n\nfunction topPlayersByTeam() {\n  const byTeam = {};\n\n  for (const p of allPlayers) {\n    if (!byTeam[p.team]) byTeam[p.team] = [];\n    byTeam[p.team].push(p);\n  }\n\n  const result = {};\n\n  for (const [team, players] of Object.entries(byTeam)) {\n    result[team] = players\n      .filter(p => p.ratingNum !== null)\n      .sort((a, b) => b.ratingNum - a.ratingNum)\n      .slice(0, 5)\n      .map(p => ({\n        id: p.id,\n        name: p.name,\n        label: p.label,\n        position: p.position,\n        rating: p.rating,\n        minutes: p.minutes,\n        goals: p.goals,\n        assists: p.assists,\n        passesTotal: p.passesTotal,\n        passesKey: p.passesKey,\n        tacklesTotal: p.tacklesTotal,\n        interceptions: p.interceptions,\n        duelsWon: p.duelsWon\n      }));\n  }\n\n  return result;\n}\n\nfunction tacticalSignals() {\n  const home = match.homeTeam;\n  const away = match.awayTeam;\n\n  return {\n    high_possession_team:\n      statValue(home, 'Ball Possession') && statValue(away, 'Ball Possession')\n        ? {\n            team:\n              parseFloat(String(statValue(home, 'Ball Possession')).replace('%', '')) >\n              parseFloat(String(statValue(away, 'Ball Possession')).replace('%', ''))\n                ? home\n                : away,\n            values: {\n              [home]: statValue(home, 'Ball Possession'),\n              [away]: statValue(away, 'Ball Possession')\n            }\n          }\n        : null,\n\n    more_shots_team:\n      num(statValue(home, 'Total Shots')) !== null && num(statValue(away, 'Total Shots')) !== null\n        ? {\n            team: num(statValue(home, 'Total Shots')) > num(statValue(away, 'Total Shots')) ? home : away,\n            values: {\n              [home]: statValue(home, 'Total Shots'),\n              [away]: statValue(away, 'Total Shots')\n            }\n          }\n        : null,\n\n    more_xg_team:\n      num(statValue(home, 'expected_goals')) !== null && num(statValue(away, 'expected_goals')) !== null\n        ? {\n            team: num(statValue(home, 'expected_goals')) > num(statValue(away, 'expected_goals')) ? home : away,\n            values: {\n              [home]: statValue(home, 'expected_goals'),\n              [away]: statValue(away, 'expected_goals')\n            }\n          }\n        : null,\n\n    passing_dominance:\n      num(statValue(home, 'Total passes')) !== null && num(statValue(away, 'Total passes')) !== null\n        ? {\n            team: num(statValue(home, 'Total passes')) > num(statValue(away, 'Total passes')) ? home : away,\n            values: {\n              [home]: statValue(home, 'Total passes'),\n              [away]: statValue(away, 'Total passes')\n            }\n          }\n        : null,\n\n    direct_warning:\n      'لا توجد بيانات كافية لإثبات تحركات مثل pass network أو heatmap أو average positions. أي قراءة تكتيكية متقدمة يجب عرضها كفرضية محتملة فقط.'\n  };\n}\n\nconst tacticalInsights = {\n  data_quality: {\n    confidence_score: dataQualityScore(),\n    available_sections: availableSections(),\n    missing_sections: missingSections(),\n    analysis_limitations: [\n      'لا توجد بيانات Attack Momentum',\n      'لا توجد Heatmaps',\n      'لا توجد Average Positions',\n      'لا توجد Pass Network',\n      'لا توجد بيانات ضغط أو PPDA',\n      'التحليل التكتيكي يجب أن يعتمد على التشكيلات والإحصائيات والأحداث فقط'\n    ]\n  },\n\n  match_info: {\n    fixtureId: match.fixtureId,\n    date: match.date,\n    dateOnly: match.dateOnly || (match.date ? String(match.date).slice(0, 10) : null),\n    timestamp: match.timestamp || null,\n    timezone: match.timezone || null,\n    match: match.match,\n    homeTeamId: match.homeTeamId || null,\n    homeTeam: match.homeTeam,\n    awayTeamId: match.awayTeamId || null,\n    awayTeam: match.awayTeam,\n    score: match.score,\n    status: match.status,\n    season: match.season || null,\n    league: match.league,\n    country: match.country,\n    round: match.round,\n    venue: match.venue,\n    referee: match.referee\n  },\n\n  formations: formationSummary(),\n  lineups: lineups(),\n  team_comparison: teamComparison(),\n\n  timelines: {\n    goals: goals(),\n    cards: cards(),\n    substitutions: substitutions()\n  },\n\n  top_players: {\n    top_rated_players: topBy('rating', 8),\n    top_rated_by_team: topPlayersByTeam(),\n    top_passers: topBy('passesTotal', 8),\n    top_key_passers: topBy('passesKey', 8),\n    top_tacklers: topBy('tacklesTotal', 8),\n    top_interceptions: topBy('interceptions', 8),\n    top_duels_won: topBy('duelsWon', 8),\n    top_dribblers: topBy('dribblesSuccess', 8),\n    top_shooters: topBy('shotsTotal', 8),\n    top_shots_on_target: topBy('shotsOn', 8)\n  },\n\n  tactical_signals: tacticalSignals(),\n\n  raw_team_statistics: match.statistics\n};\n\nconst prompt = `\nأنت محلل كرة قدم محترف وصانع محتوى رياضي.\n\nاعتمد فقط على البيانات التالية:\n\n${JSON.stringify(tacticalInsights, null, 2)}\n\n━━━━━━━━━━━━━━━━━━━\nقواعد إلزامية\n━━━━━━━━━━━━━━━━━━━\n\n1- ممنوع اختراع أي رقم أو حدث أو اسم لاعب أو معلومة غير موجودة.\n\n2- إذا لم تتوفر معلومة في البيانات اكتب:\n\"غير متوفر في البيانات\"\n\n3- لا تستنتج تحركات تكتيكية غير مدعومة بالأرقام.\n\n4- فرّق دائماً بين:\n- حقائق مؤكدة من البيانات\n- فرضيات تكتيكية محتملة\n\n5- أي فكرة تكتيكية غير مثبتة بالأرقام يجب أن توضع تحت:\n\"فرضيات تكتيكية محتملة\"\nوليس كحقيقة.\n\n6- لا تستخدم أي معرفة خارجية عن الفرق أو المدربين أو اللاعبين.\n\n7- استخدم فقط أسماء اللاعبين الموجودة في البيانات.\n\n8- لا تذكر أي لاعب لم يظهر في البيانات.\n\n9- إذا كانت البيانات غير كافية للتحليل التكتيكي العميق اذكر ذلك بوضوح.\n\n10- الدقة أهم من الإبداع.\n\n11- انسخ fixtureId وdate وdateOnly حرفياً من match_info إلى match_facts. ممنوع تعديلها أو تخمينها.\n\n12- عند ذكر أي لاعب في الأحداث استخدم الحقل المنتهي بـ Label مثل scorerLabel أو playerLabel أو playerOutLabel أو playerInLabel.\n\n13- Player ID هو الهوية الأساسية للاعب. إذا تشابه اسمان مختصران فلا تفترض أنهما اللاعب نفسه ما دامت أرقام ID مختلفة.\n\n14- لا تحوّل الاسم المختصر إلى اسم كامل من معرفتك الخارجية. استخدم الاسم والـ ID الموجودين فقط.\n\n15- في الأهداف استخدم scorerLabel للمسجل وassistLabel لصاحب التمريرة. وفي التبديلات استخدم playerOutLabel وplayerInLabel.\n\n━━━━━━━━━━━━━━━━━━━\nالمطلوب\n━━━━━━━━━━━━━━━━━━━\n\nأخرج JSON فقط بهذا الشكل:\n\n{\n  \"data_quality\": {\n    \"confidence_score\": \"\",\n    \"available_sections\": [],\n    \"missing_sections\": [],\n    \"analysis_limitations\": []\n  },\n\n  \"executive_summary\": {\n    \"headline\": \"\",\n    \"short_summary\": \"\",\n    \"main_story\": \"\"\n  },\n\n  \"match_facts\": {\n    \"fixture_id\": \"\",\n    \"date\": \"\",\n    \"date_only\": \"\",\n    \"status\": \"\",\n    \"home_team\": \"\",\n    \"away_team\": \"\",\n    \"score\": \"\",\n    \"competition\": \"\",\n    \"key_events\": [],\n    \"important_numbers\": []\n  },\n\n  \"snap_video_material\": {\n    \"opening_hooks\": [],\n    \"match_flow_points\": [],\n    \"key_numbers_ordered\": [],\n    \"best_players\": [],\n    \"strong_closing_points\": []\n  },\n\n  \"factual_match_analysis\": {\n    \"formation_comparison\": [],\n    \"statistical_advantages\": [],\n    \"player_impacts\": [],\n    \"turning_points\": []\n  },\n\n  \"possible_tactical_hypotheses\": {\n    \"hypotheses\": [],\n    \"confidence_level\": \"\"\n  },\n\n  \"twitter_thread\": {\n    \"main_post\": \"\",\n    \"thread_points\": []\n  },\n\n  \"article_structure\": {\n    \"title\": \"\",\n    \"intro\": \"\",\n    \"sections\": []\n  },\n\n  \"tactical_image_prompts\": [\n    {\n      \"scene_title\": \"\",\n      \"purpose\": \"\",\n      \"confidence\": \"\",\n      \"prompt\": \"\"\n    }\n  ]\n}\n\n━━━━━━━━━━━━━━━━━━━\nشروط tactical_image_prompts\n━━━━━━━━━━━━━━━━━━━\n\nأنشئ 5 برومبتات منفصلة فقط.\n\nلكل برومبت:\n- Vertical 9:16\n- White Background\n- Clean 2D Football Pitch\n- Tactical Board Style\n- Professional Football Analysis Style\n- Use only players الموجودين في البيانات\n- Use arrows only when explicitly supported by the available event or lineup data\n- No invented arrows or movements\n- No invented movements\n- Explain one idea فقط في كل صورة\n\nالصورة 1:\nBasic Formation\n\nالصورة 2:\nVerified Key Players\n\nالصورة 3:\nTeam Statistics Comparison\n\nالصورة 4:\nKey Events Timeline\n\nالصورة 5:\nEvidence-Based Tactical Summary\n`;\n\nreturn [\n  {\n    json: {\n      tacticalInsights,\n      prompt\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        544,
+        608
+      ],
+      "id": "01d6dd74-1afd-43e4-b2c0-37ca77741959",
+      "name": "Extract Tactical Insights"
+    },
+    {
+      "parameters": {
+        "jsCode": "const rawValue = $json.output ?? $json.text ?? $json.response ?? '';\nlet raw = typeof rawValue === 'string' ? rawValue.trim() : JSON.stringify(rawValue);\n\nraw = raw\n  .replace(/^```json\\s*/i, '')\n  .replace(/^```\\s*/i, '')\n  .replace(/\\s*```$/i, '')\n  .trim();\n\nconst firstBrace = raw.indexOf('{');\nconst lastBrace = raw.lastIndexOf('}');\nif (firstBrace < 0 || lastBrace <= firstBrace) {\n  throw new Error('لم يُرجع النموذج كائن JSON صالحًا.');\n}\n\nlet data;\ntry {\n  data = JSON.parse(raw.slice(firstBrace, lastBrace + 1));\n} catch (error) {\n  throw new Error(`فشل تحليل JSON الناتج من النموذج: ${error.message}`);\n}\n\nconst required = [\n  'data_quality',\n  'executive_summary',\n  'match_facts',\n  'snap_video_material',\n  'factual_match_analysis',\n  'possible_tactical_hypotheses',\n  'twitter_thread',\n  'article_structure',\n  'tactical_image_prompts'\n];\nconst missing = required.filter(key => !(key in data));\nif (missing.length) {\n  throw new Error(`JSON ناقص. الحقول المفقودة: ${missing.join(', ')}`);\n}\n\nreturn [{\n  json: {\n    المقال: {\n      العنوان: data.article_structure?.title || '',\n      المقدمة: data.article_structure?.intro || '',\n      المحاور: data.article_structure?.sections || []\n    },\n    محتوى_التصوير_سناب: {\n      الهوكات: data.snap_video_material?.opening_hooks || [],\n      تسلسل_المباراة: data.snap_video_material?.match_flow_points || [],\n      الأرقام_المهمة: data.snap_video_material?.key_numbers_ordered || [],\n      أفضل_اللاعبين: data.snap_video_material?.best_players || [],\n      الخاتمة: data.snap_video_material?.strong_closing_points || []\n    },\n    البرومبتات_التكتيكية: data.tactical_image_prompts || [],\n    الثريد: {\n      التغريدة_الرئيسية: data.twitter_thread?.main_post || '',\n      نقاط_الثريد: data.twitter_thread?.thread_points || []\n    },\n    ملخص_تنفيذي: data.executive_summary || {},\n    تحليل_المباراة: {\n      حقائق_مؤكدة: data.factual_match_analysis || {},\n      فرضيات_تكتيكية: data.possible_tactical_hypotheses || {}\n    },\n    جودة_البيانات: data.data_quality || {},\n    حقائق_المباراة: data.match_facts || {}\n  }\n}];"
+      },
+      "id": "04e2bc22-2048-4b48-b46e-75990c880797",
+      "name": "Parse and Validate Analysis",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1168,
+        608
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const d = $json;\n\nlet output = '';\n\noutput += '🏆 الملخص التنفيذي\\n';\noutput += '━━━━━━━━━━━━━━\\n';\noutput += JSON.stringify(d.ملخص_تنفيذي, null, 2);\n\noutput += '\\n\\n🎥 محتوى التصوير\\n';\noutput += '━━━━━━━━━━━━━━\\n';\noutput += JSON.stringify(d.محتوى_التصوير_سناب, null, 2);\n\noutput += '\\n\\n📰 المقال\\n';\noutput += '━━━━━━━━━━━━━━\\n';\noutput += JSON.stringify(d.المقال, null, 2);\n\noutput += '\\n\\n🧵 ثريد تويتر\\n';\noutput += '━━━━━━━━━━━━━━\\n';\noutput += JSON.stringify(d.الثريد, null, 2);\n\noutput += '\\n\\n⚽ التحليل\\n';\noutput += '━━━━━━━━━━━━━━\\n';\noutput += JSON.stringify(d.تحليل_المباراة, null, 2);\n\noutput += '\\n\\n🎨 البرومبتات التكتيكية\\n';\noutput += '━━━━━━━━━━━━━━\\n';\noutput += JSON.stringify(d.البرومبتات_التكتيكية, null, 2);\n\nreturn [{\n  json: {\n    output\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1376,
+        608
+      ],
+      "id": "31e5a8f9-9664-45f3-90a3-372bff952bb4",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chat",
+      "typeVersion": 1.3,
+      "position": [
+        1584,
+        608
+      ],
+      "id": "a1eab263-ddad-4084-bb54-0ef3074d6e37",
+      "name": "Chat",
+      "webhookId": "PUBLIC_WEBHOOK_ID"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "public-api-football-variable",
+              "name": "apiFootballKey",
+              "value": "YOUR_API_FOOTBALL_KEY",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        64,
+        608
+      ],
+      "id": "8a2a66d6-0f26-4297-8237-5b8ad4aaf9c7",
+      "name": "Load API Configuration"
+    }
+  ],
+  "connections": {
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "Load API Configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch API-Football Data": {
+      "main": [
+        [
+          {
+            "node": "Extract Tactical Insights",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Generate Grounded Analysis",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Tactical Insights": {
+      "main": [
+        [
+          {
+            "node": "Generate Grounded Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Chat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load API Configuration": {
+      "main": [
+        [
+          {
+            "node": "Fetch API-Football Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Grounded Analysis": {
+      "main": [
+        [
+          {
+            "node": "Parse and Validate Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse and Validate Analysis": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "nodeGroups": []
+}
