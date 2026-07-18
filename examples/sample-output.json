@@ -1,0 +1,30 @@
+{
+  "success": true,
+  "fixtureId": "1234567",
+  "dateOnly": "2022-12-18",
+  "match": "Argentina vs France",
+  "score": "3 - 3",
+  "data_quality": {
+    "confidence_score": "75/100",
+    "available_sections": [
+      "team_statistics",
+      "events",
+      "lineups"
+    ],
+    "missing_sections": [
+      "player_statistics",
+      "heatmaps",
+      "pass_network"
+    ]
+  },
+  "content_modules": [
+    "executive_summary",
+    "match_facts",
+    "snap_video_material",
+    "factual_match_analysis",
+    "possible_tactical_hypotheses",
+    "twitter_thread",
+    "article_structure",
+    "tactical_image_prompts"
+  ]
+}
