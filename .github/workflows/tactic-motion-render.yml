@@ -1,0 +1,289 @@
+name: TACTIC Motion Render
+
+on:
+  workflow_dispatch:
+    inputs:
+      payload_mode:
+        description: "Render payload source"
+        required: true
+        type: choice
+        default: test
+        options:
+          - test
+          - json
+      payload_json:
+        description: "Full render_payload JSON when payload_mode=json"
+        required: false
+        type: string
+      upload_result_to_motion:
+        description: "Upload completed MP4 back to the TACTIC Motion server"
+        required: true
+        type: boolean
+        default: true
+  repository_dispatch:
+    types:
+      - tactic-motion-render
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tactic-motion-${{ github.event.client_payload.request_id || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  render:
+    name: Render TACTIC Motion
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Prepare render payload
+        shell: bash
+        env:
+          MANUAL_PAYLOAD_MODE: ${{ inputs.payload_mode }}
+          MANUAL_PAYLOAD_JSON: ${{ inputs.payload_json }}
+        run: |
+          set -euo pipefail
+
+          if [ "${GITHUB_EVENT_NAME}" = "repository_dispatch" ]; then
+            jq -e '.client_payload.render_payload | type == "object"' "$GITHUB_EVENT_PATH" >/dev/null
+            jq '.client_payload.render_payload' "$GITHUB_EVENT_PATH" > render-payload.json
+          elif [ "${MANUAL_PAYLOAD_MODE:-test}" = "json" ]; then
+            if [ -z "${MANUAL_PAYLOAD_JSON:-}" ]; then
+              echo "payload_json is required when payload_mode=json" >&2
+              exit 1
+            fi
+            printf '%s' "$MANUAL_PAYLOAD_JSON" | jq -e '.' > render-payload.json
+          else
+            cp motion-renderer/examples/test-payload.json render-payload.json
+          fi
+
+          jq -e '.gameId and .homeTeam and .awayTeam' render-payload.json >/dev/null
+          echo "game_id=$(jq -r '.gameId' render-payload.json)" >> "$GITHUB_ENV"
+          echo "Rendering game $(jq -r '.gameId' render-payload.json): $(jq -r '.homeTeam' render-payload.json) vs $(jq -r '.awayTeam' render-payload.json)"
+
+      - name: Validate remote media assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import subprocess
+          from pathlib import Path
+
+          p = json.loads(Path('render-payload.json').read_text())
+          urls = []
+          for label, url in [
+              ('highlights', p.get('highlightsVideoUrl')),
+              ('home_badge', (p.get('assets') or {}).get('homeBadgeUrl')),
+              ('away_badge', (p.get('assets') or {}).get('awayBadgeUrl')),
+              ('competition_logo', (p.get('assets') or {}).get('competitionLogoUrl')),
+              ('star_player', (p.get('assets') or {}).get('starPlayerPhotoUrl')),
+          ]:
+              if url:
+                  urls.append((label, url))
+
+          for label, url in urls:
+              print(f'Checking {label}: {url}')
+              subprocess.run([
+                  'curl', '-fLsS', '--retry', '3', '--retry-delay', '2',
+                  '--range', '0-0', '-o', '/dev/null', url
+              ], check=True)
+          PY
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build renderer image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./motion-renderer
+          file: ./motion-renderer/Dockerfile
+          load: true
+          tags: tactic-motion-actions:3.3
+          cache-from: type=gha,scope=tactic-motion-renderer
+          cache-to: type=gha,mode=max,scope=tactic-motion-renderer
+
+      - name: Start local renderer
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p rendered state
+          docker run -d \
+            --name tactic-motion-actions \
+            -p 18080:80 \
+            -e PORT=80 \
+            -e PUBLIC_URL=http://127.0.0.1:18080 \
+            -v "$PWD/rendered:/app/renders" \
+            -v "$PWD/state:/app/state" \
+            tactic-motion-actions:3.3
+
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:18080/health > health.json 2>/dev/null; then
+              cat health.json
+              exit 0
+            fi
+            sleep 2
+          done
+
+          docker logs tactic-motion-actions || true
+          echo "Renderer did not become healthy" >&2
+          exit 1
+
+      - name: Create render job
+        shell: bash
+        run: |
+          set -euo pipefail
+          response=$(curl -fsS \
+            -X POST \
+            -H 'Content-Type: application/json' \
+            --data-binary @render-payload.json \
+            http://127.0.0.1:18080/renders)
+
+          printf '%s\n' "$response" | tee create-job.json
+          job_id=$(printf '%s' "$response" | jq -er '.jobId')
+          echo "job_id=$job_id" >> "$GITHUB_ENV"
+          echo "$job_id" > job-id.txt
+
+      - name: Wait for render completion
+        shell: bash
+        run: |
+          set -euo pipefail
+          job_id="${job_id}"
+
+          for i in $(seq 1 360); do
+            status_json=$(curl -fsS "http://127.0.0.1:18080/renders/${job_id}")
+            printf '%s\n' "$status_json" > render-status.json
+
+            status=$(printf '%s' "$status_json" | jq -r '.status')
+            progress=$(printf '%s' "$status_json" | jq -r '.progress // 0')
+            elapsed=$(printf '%s' "$status_json" | jq -r '.elapsedSeconds // 0')
+
+            echo "status=${status} progress=${progress} elapsed=${elapsed}s"
+
+            if [ "$status" = "completed" ]; then
+              test -s "rendered/${job_id}.mp4"
+              exit 0
+            fi
+
+            if [ "$status" = "failed" ]; then
+              printf '%s\n' "$status_json" | jq .
+              docker logs tactic-motion-actions || true
+              exit 1
+            fi
+
+            sleep 15
+          done
+
+          echo "Render exceeded 90-minute workflow timeout window" >&2
+          docker logs tactic-motion-actions || true
+          exit 1
+
+      - name: Upload final MP4 to TACTIC Motion storage
+        id: publish
+        if: ${{ success() && (github.event_name == 'repository_dispatch' || inputs.upload_result_to_motion) }}
+        shell: bash
+        env:
+          MANUAL_UPLOAD_BASE: "https://personal-tactic-motion.8kospi.easypanel.host"
+        run: |
+          set -euo pipefail
+
+          upload_base=""
+          request_id=""
+
+          if [ "${GITHUB_EVENT_NAME}" = "repository_dispatch" ]; then
+            upload_base=$(jq -r '.client_payload.result_upload_base_url // empty' "$GITHUB_EVENT_PATH")
+            request_id=$(jq -r '.client_payload.request_id // empty' "$GITHUB_EVENT_PATH")
+          else
+            upload_base="$MANUAL_UPLOAD_BASE"
+          fi
+
+          if [ -z "$upload_base" ]; then
+            echo "No result_upload_base_url supplied; keeping result as GitHub artifact only."
+            exit 0
+          fi
+
+          file="rendered/${job_id}.mp4"
+          curl_args=(
+            -fsS
+            --retry 3
+            --retry-delay 3
+            -X POST
+            -H "Content-Type: video/mp4"
+            -H "x-file-name: tactic-render-${game_id}.mp4"
+            -H "x-game-id: ${game_id}"
+            -H "x-media-type: rendered_motion"
+          )
+
+          if [ -n "$request_id" ]; then
+            curl_args+=( -H "x-request-id: ${request_id}" )
+          fi
+
+          response=$(curl "${curl_args[@]}" \
+            --data-binary "@${file}" \
+            "${upload_base%/}/assets")
+
+          printf '%s\n' "$response" | tee uploaded-result.json
+          result_url=$(printf '%s' "$response" | jq -er '.url')
+          echo "result_url=$result_url" >> "$GITHUB_OUTPUT"
+          echo "RESULT URL: $result_url"
+
+      - name: Build result manifest
+        if: ${{ success() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          result_url=""
+          if [ -f uploaded-result.json ]; then
+            result_url=$(jq -r '.url // empty' uploaded-result.json)
+          fi
+
+          jq -n \
+            --arg jobId "$job_id" \
+            --arg gameId "$game_id" \
+            --arg resultUrl "$result_url" \
+            --arg runId "$GITHUB_RUN_ID" \
+            --arg repository "$GITHUB_REPOSITORY" \
+            '{
+              ok: true,
+              renderer: "github-actions",
+              jobId: $jobId,
+              gameId: ($gameId | tonumber),
+              resultUrl: (if $resultUrl == "" then null else $resultUrl end),
+              githubRunId: ($runId | tonumber),
+              repository: $repository
+            }' | tee rendered/result.json
+
+      - name: Upload rendered video artifact
+        if: ${{ success() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: tactic-motion-${{ env.game_id }}-${{ github.run_id }}
+          path: |
+            rendered/${{ env.job_id }}.mp4
+            rendered/result.json
+          retention-days: 3
+          if-no-files-found: error
+
+      - name: Upload diagnostics on failure
+        if: ${{ failure() }}
+        shell: bash
+        run: |
+          docker logs tactic-motion-actions > renderer.log 2>&1 || true
+
+      - name: Save failure diagnostics
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: tactic-motion-failure-${{ github.run_id }}
+          path: |
+            renderer.log
+            render-payload.json
+            render-status.json
+            create-job.json
+          retention-days: 3
+          if-no-files-found: ignore
