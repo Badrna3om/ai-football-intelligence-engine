@@ -1,6 +1,12 @@
 name: TACTIC Motion Render
+run-name: TACTIC Motion ${{ github.event.client_payload.request_id || github.run_id }}
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - "motion-renderer/**"
   workflow_dispatch:
     inputs:
       payload_mode:
