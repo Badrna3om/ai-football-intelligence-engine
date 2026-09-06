@@ -199,6 +199,11 @@ jobs:
         run: |
           set -euo pipefail
 
+          if ! command -v ffprobe >/dev/null 2>&1 || ! command -v ffmpeg >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ffmpeg
+          fi
+
           input="rendered/${job_id}.mp4"
           duration=$(ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 "$input")
           export TACTIC_AUDIO_DURATION="$duration"
@@ -207,7 +212,6 @@ jobs:
           import math
           import os
           import random
-          import struct
           import wave
           from array import array
 
