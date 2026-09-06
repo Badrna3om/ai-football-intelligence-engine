@@ -1,0 +1,112 @@
+{
+  "templateKey": "TACTIC_MATCH_FINAL_MOTION_V3",
+  "language": "ar",
+  "direction": "rtl",
+  "fontFamily": "Cairo",
+  "gameId": 4781124,
+  "competition": "UAE Pro League",
+  "round": 4,
+  "homeTeam": "شباب الاهلي",
+  "awayTeam": "الجزيرة",
+  "score": "1 - 3",
+  "introHeadline": "الجزيرة يحسم المواجهة أمام شباب الاهلي",
+  "mediaMode": "highlights",
+  "highlightsVideoUrl": "https://personal-tactic-motion.8kospi.easypanel.host/assets/56986a71-889b-426d-8cb9-56554602b739.mp4",
+  "highlightsFileName": "الجزيرة__شباب الأهلي__highlights__x_2096303430734078381.mp4",
+  "statsCards": [
+    {
+      "id": "shots",
+      "headline": "التسديدات",
+      "metric": "إجمالي التسديدات",
+      "homeValue": 13,
+      "awayValue": 17,
+      "homeLabel": "شباب الاهلي",
+      "awayLabel": "الجزيرة",
+      "visual": "shot_trails"
+    },
+    {
+      "id": "shots_on_target",
+      "headline": "على المرمى",
+      "metric": "التسديدات على المرمى",
+      "homeValue": 4,
+      "awayValue": 5,
+      "homeLabel": "شباب الاهلي",
+      "awayLabel": "الجزيرة",
+      "visual": "goal_dots"
+    },
+    {
+      "id": "big_chances",
+      "headline": "الفرص الكبيرة",
+      "metric": "الفرص الكبيرة",
+      "homeValue": 0,
+      "awayValue": 5,
+      "homeLabel": "شباب الاهلي",
+      "awayLabel": "الجزيرة",
+      "visual": "chance_map"
+    },
+    {
+      "id": "xg",
+      "headline": "الأهداف المتوقعة",
+      "metric": "xG",
+      "homeValue": 1.51,
+      "awayValue": 1.48,
+      "homeLabel": "شباب الاهلي",
+      "awayLabel": "الجزيرة",
+      "visual": "xg_meter"
+    },
+    {
+      "id": "possession",
+      "headline": "الاستحواذ",
+      "metric": "الاستحواذ %",
+      "homeValue": 62,
+      "awayValue": 38,
+      "homeLabel": "شباب الاهلي",
+      "awayLabel": "الجزيرة",
+      "visual": "possession_bar"
+    }
+  ],
+  "starPlayer": {
+    "playerId": 49531776,
+    "name": "فليسيو ميلسون",
+    "nameEn": "Felicio Milson",
+    "teamId": 8344,
+    "team": "الجزيرة",
+    "rating": 8.3,
+    "position": "Left Forward",
+    "stats": {
+      "Assists": "1",
+      "Key Passes": "6",
+      "Total Shots": "4",
+      "Big Chances Created": "3",
+      "Expected Assists": "0.44"
+    },
+    "photoUrl": "https://personal-tactic-motion.8kospi.easypanel.host/assets/3d93067f-a491-4abf-9dca-79a57dabd034.png"
+  },
+  "match": {
+    "gameId": 4781124,
+    "competitionId": 549,
+    "competitionName": "UAE Pro League",
+    "round": 4,
+    "venue": "Rashid Stadium",
+    "referee": "G. Tejera",
+    "home": {
+      "id": 8347,
+      "name": "شباب الاهلي",
+      "score": 1,
+      "badgeUrl": "https://personal-tactic-motion.8kospi.easypanel.host/assets/4d945679-cf32-4b46-a7cc-661c899aa41b.png"
+    },
+    "away": {
+      "id": 8344,
+      "name": "الجزيرة",
+      "score": 3,
+      "badgeUrl": "https://personal-tactic-motion.8kospi.easypanel.host/assets/9ef74bb6-f895-4cb4-a7e3-452ebe1dba9b.png"
+    }
+  },
+  "assets": {
+    "homeBadgeUrl": "https://personal-tactic-motion.8kospi.easypanel.host/assets/4d945679-cf32-4b46-a7cc-661c899aa41b.png",
+    "awayBadgeUrl": "https://personal-tactic-motion.8kospi.easypanel.host/assets/9ef74bb6-f895-4cb4-a7e3-452ebe1dba9b.png",
+    "competitionLogoUrl": "https://personal-tactic-motion.8kospi.easypanel.host/assets/7072b624-a5b3-4d20-ae25-a0745af8a0be.png",
+    "tacticLogoUrl": null,
+    "starPlayerPhotoUrl": "https://personal-tactic-motion.8kospi.easypanel.host/assets/3d93067f-a491-4abf-9dca-79a57dabd034.png"
+  }
+}
