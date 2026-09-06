@@ -93,6 +93,11 @@ jobs:
               if url:
                   urls.append((label, url))
 
+          for i, goal in enumerate(p.get('goals') or []):
+              url = goal.get('videoUrl') if isinstance(goal, dict) else None
+              if url:
+                  urls.append((f'goal_{i + 1}', url))
+
           for label, url in urls:
               print(f'Checking {label}: {url}')
               subprocess.run([
@@ -110,7 +115,7 @@ jobs:
           context: ./motion-renderer
           file: ./motion-renderer/Dockerfile
           load: true
-          tags: tactic-motion-actions:3.3
+          tags: tactic-motion-actions:5.6
           cache-from: type=gha,scope=tactic-motion-renderer
           cache-to: type=gha,mode=max,scope=tactic-motion-renderer
 
@@ -126,7 +131,7 @@ jobs:
             -e PUBLIC_URL=http://127.0.0.1:18080 \
             -v "$PWD/rendered:/app/renders" \
             -v "$PWD/state:/app/state" \
-            tactic-motion-actions:3.3
+            tactic-motion-actions:5.6
 
           for i in $(seq 1 60); do
             if curl -fsS http://127.0.0.1:18080/health > health.json 2>/dev/null; then
@@ -189,6 +194,115 @@ jobs:
           docker logs tactic-motion-actions || true
           exit 1
 
+      - name: Create varied sports music and master audio
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          input="rendered/${job_id}.mp4"
+          duration=$(ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 "$input")
+          export TACTIC_AUDIO_DURATION="$duration"
+
+          python3 - <<'PY'
+          import math
+          import os
+          import random
+          import struct
+          import wave
+          from array import array
+
+          duration = max(1.0, float(os.environ['TACTIC_AUDIO_DURATION']))
+          run_id = int(os.environ.get('GITHUB_RUN_ID', '1'))
+          variant = run_id % 5
+          bpms = [128, 132, 136, 140, 144]
+          roots = [49.00, 55.00, 58.27, 61.74, 65.41]
+          patterns = [
+              [0, 0, 3, 5, 0, 7, 5, 3],
+              [0, 5, 3, 7, 0, 8, 7, 5],
+              [0, 3, 5, 3, 7, 5, 3, 0],
+              [0, 7, 5, 3, 0, 5, 8, 7],
+              [0, 3, 7, 5, 8, 7, 5, 3],
+          ]
+          bpm = bpms[variant]
+          root = roots[variant]
+          pattern = patterns[variant]
+          beat = 60.0 / bpm
+          sr = 22050
+          total = int(duration * sr)
+          rng = random.Random(run_id)
+          out = array('h')
+
+          for i in range(total):
+              t = i / sr
+              beat_index = int(t / beat)
+              beat_phase = t - beat_index * beat
+              half = beat / 2.0
+              hat_phase = t % half
+
+              kick = 0.0
+              if beat_phase < 0.18:
+                  env = math.exp(-22.0 * beat_phase)
+                  freq = 58.0 - 20.0 * min(1.0, beat_phase / 0.18)
+                  kick = 0.58 * env * math.sin(2.0 * math.pi * freq * t)
+
+              snare = 0.0
+              if beat_index % 4 in (1, 3) and beat_phase < 0.14:
+                  snare = 0.20 * math.exp(-25.0 * beat_phase) * (rng.random() * 2.0 - 1.0)
+
+              hat = 0.0
+              if hat_phase < 0.055:
+                  hat = 0.075 * math.exp(-70.0 * hat_phase) * (rng.random() * 2.0 - 1.0)
+
+              semitone = pattern[beat_index % len(pattern)]
+              bass_freq = root * (2.0 ** (semitone / 12.0))
+              bass_env = min(1.0, beat_phase / 0.025) * math.exp(-2.8 * beat_phase)
+              bass = 0.19 * bass_env * math.sin(2.0 * math.pi * bass_freq * t)
+
+              pulse_phase = t % (beat * 2.0)
+              pulse_env = math.exp(-3.2 * pulse_phase) if pulse_phase < beat else 0.0
+              pulse = 0.055 * pulse_env * (
+                  math.sin(2.0 * math.pi * bass_freq * 4.0 * t) +
+                  0.45 * math.sin(2.0 * math.pi * bass_freq * 6.0 * t)
+              )
+
+              rise = min(1.0, t / 1.8)
+              tail = min(1.0, max(0.0, duration - t) / 1.5)
+              sample = (kick + snare + hat + bass + pulse) * rise * tail
+              sample = max(-0.96, min(0.96, sample))
+              out.append(int(sample * 32767))
+
+          with wave.open('sports-bed.wav', 'wb') as w:
+              w.setnchannels(1)
+              w.setsampwidth(2)
+              w.setframerate(sr)
+              w.writeframes(out.tobytes())
+
+          print(f'TACTIC music variant={variant + 1} bpm={bpm} root={root:.2f}Hz duration={duration:.2f}s')
+          with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as env:
+              env.write(f'music_variant={variant + 1}\n')
+              env.write(f'music_bpm={bpm}\n')
+          PY
+
+          tmp="rendered/${job_id}.master.mp4"
+          if ffprobe -v error -select_streams a:0 -show_entries stream=index -of csv=p=0 "$input" | grep -q .; then
+            ffmpeg -y \
+              -i "$input" \
+              -i sports-bed.wav \
+              -filter_complex "[1:a]volume=0.36[music];[music][0:a]sidechaincompress=threshold=0.018:ratio=9:attack=20:release=480[ducked];[ducked][0:a]amix=inputs=2:duration=first:weights='0.82 1.15':normalize=0,alimiter=limit=0.95[aout]" \
+              -map 0:v:0 -map "[aout]" \
+              -c:v copy -c:a aac -b:a 192k -shortest "$tmp"
+          else
+            ffmpeg -y \
+              -i "$input" \
+              -i sports-bed.wav \
+              -filter_complex "[1:a]volume=0.34,alimiter=limit=0.95[aout]" \
+              -map 0:v:0 -map "[aout]" \
+              -c:v copy -c:a aac -b:a 192k -shortest "$tmp"
+          fi
+
+          mv "$tmp" "$input"
+          echo "Audio master complete: sports variant ${music_variant}, ${music_bpm} BPM"
+
       - name: Upload final MP4 to TACTIC Motion storage
         id: publish
         if: ${{ success() && (github.event_name == 'repository_dispatch' || inputs.upload_result_to_motion) }}
@@ -223,6 +337,7 @@ jobs:
             -H "x-file-name: tactic-render-${game_id}.mp4"
             -H "x-game-id: ${game_id}"
             -H "x-media-type: rendered_motion"
+            -H "x-music-variant: ${music_variant:-unknown}"
           )
 
           if [ -n "$request_id" ]; then
@@ -254,14 +369,19 @@ jobs:
             --arg resultUrl "$result_url" \
             --arg runId "$GITHUB_RUN_ID" \
             --arg repository "$GITHUB_REPOSITORY" \
+            --arg musicVariant "${music_variant:-unknown}" \
+            --arg musicBpm "${music_bpm:-unknown}" \
             '{
               ok: true,
               renderer: "github-actions",
+              template: "TACTIC_V5_6_ALAIN_MASTER",
               jobId: $jobId,
               gameId: ($gameId | tonumber),
               resultUrl: (if $resultUrl == "" then null else $resultUrl end),
               githubRunId: ($runId | tonumber),
-              repository: $repository
+              repository: $repository,
+              musicVariant: $musicVariant,
+              musicBpm: $musicBpm
             }' | tee rendered/result.json
 
       - name: Upload rendered video artifact
