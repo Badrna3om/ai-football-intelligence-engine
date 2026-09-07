@@ -54,20 +54,15 @@ jobs:
           MANUAL_PAYLOAD_JSON: ${{ inputs.payload_json }}
         run: |
           set -euo pipefail
-
           if [ "${GITHUB_EVENT_NAME}" = "repository_dispatch" ]; then
             jq -e '.client_payload.render_payload | type == "object"' "$GITHUB_EVENT_PATH" >/dev/null
             jq '.client_payload.render_payload' "$GITHUB_EVENT_PATH" > render-payload.json
           elif [ "${MANUAL_PAYLOAD_MODE:-test}" = "json" ]; then
-            if [ -z "${MANUAL_PAYLOAD_JSON:-}" ]; then
-              echo "payload_json is required when payload_mode=json" >&2
-              exit 1
-            fi
+            test -n "${MANUAL_PAYLOAD_JSON:-}"
             printf '%s' "$MANUAL_PAYLOAD_JSON" | jq -e '.' > render-payload.json
           else
             cp motion-renderer/examples/test-payload.json render-payload.json
           fi
-
           jq -e '.gameId and .homeTeam and .awayTeam' render-payload.json >/dev/null
           game_id="$(jq -r '.gameId' render-payload.json)"
           echo "game_id=${game_id}" >> "$GITHUB_ENV"
@@ -78,34 +73,25 @@ jobs:
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import json
-          import subprocess
+          import json, subprocess
           from pathlib import Path
-
-          p = json.loads(Path('render-payload.json').read_text())
-          urls = []
-
-          for label, url in [
-              ('highlights', p.get('highlightsVideoUrl')),
-              ('home_badge', (p.get('assets') or {}).get('homeBadgeUrl')),
-              ('away_badge', (p.get('assets') or {}).get('awayBadgeUrl')),
-              ('competition_logo', (p.get('assets') or {}).get('competitionLogoUrl')),
-              ('star_player', (p.get('assets') or {}).get('starPlayerPhotoUrl')),
+          p=json.loads(Path('render-payload.json').read_text())
+          urls=[]
+          assets=p.get('assets') or {}
+          for label,url in [
+            ('highlights',p.get('highlightsVideoUrl')),
+            ('home_badge',assets.get('homeBadgeUrl')),
+            ('away_badge',assets.get('awayBadgeUrl')),
+            ('competition_logo',assets.get('competitionLogoUrl')),
+            ('tactic_logo',assets.get('tacticLogoUrl')),
+            ('star_player',assets.get('starPlayerPhotoUrl')),
           ]:
-              if url:
-                  urls.append((label, url))
-
-          for i, goal in enumerate(p.get('goals') or []):
-              url = goal.get('videoUrl') if isinstance(goal, dict) else None
-              if url:
-                  urls.append((f'goal_{i + 1}', url))
-
-          for label, url in urls:
-              print(f'Checking {label}: {url}')
-              subprocess.run([
-                  'curl', '-fLsS', '--retry', '3', '--retry-delay', '2',
-                  '--range', '0-0', '-o', '/dev/null', url,
-              ], check=True)
+            if url: urls.append((label,url))
+          for i,g in enumerate(p.get('goals') or []):
+            if isinstance(g,dict) and g.get('videoUrl'): urls.append((f'goal_{i+1}',g['videoUrl']))
+          for label,url in urls:
+            print(f'Checking {label}: {url}')
+            subprocess.run(['curl','-fLsS','--retry','3','--retry-delay','2','--range','0-0','-o','/dev/null',url],check=True)
           PY
 
       - name: Set up Docker Buildx
@@ -117,7 +103,7 @@ jobs:
           context: ./motion-renderer
           file: ./motion-renderer/Dockerfile
           load: true
-          tags: tactic-motion-actions:5.7
+          tags: tactic-motion-actions:7.0
           cache-from: type=gha,scope=tactic-motion-renderer
           cache-to: type=gha,mode=max,scope=tactic-motion-renderer
 
@@ -126,7 +112,6 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p rendered state
-
           docker run -d \
             --name tactic-motion-actions \
             -p 18080:80 \
@@ -134,8 +119,7 @@ jobs:
             -e PUBLIC_URL=http://127.0.0.1:18080 \
             -v "$PWD/rendered:/app/renders" \
             -v "$PWD/state:/app/state" \
-            tactic-motion-actions:5.7
-
+            tactic-motion-actions:7.0
           for i in $(seq 1 60); do
             if curl -fsS http://127.0.0.1:18080/health > health.json 2>/dev/null; then
               cat health.json
@@ -143,22 +127,14 @@ jobs:
             fi
             sleep 2
           done
-
           docker logs tactic-motion-actions || true
-          echo "Renderer did not become healthy" >&2
           exit 1
 
       - name: Create render job
         shell: bash
         run: |
           set -euo pipefail
-
-          response="$(curl -fsS \
-            -X POST \
-            -H 'Content-Type: application/json' \
-            --data-binary @render-payload.json \
-            http://127.0.0.1:18080/renders)"
-
+          response="$(curl -fsS -X POST -H 'Content-Type: application/json' --data-binary @render-payload.json http://127.0.0.1:18080/renders)"
           printf '%s\n' "$response" | tee create-job.json
           job_id="$(printf '%s' "$response" | jq -er '.jobId')"
           echo "job_id=${job_id}" >> "$GITHUB_ENV"
@@ -168,32 +144,24 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
           for i in $(seq 1 360); do
             status_json="$(curl -fsS "http://127.0.0.1:18080/renders/${job_id}")"
             printf '%s\n' "$status_json" > render-status.json
-
             status="$(printf '%s' "$status_json" | jq -r '.status')"
             progress="$(printf '%s' "$status_json" | jq -r '.progress // 0')"
             elapsed="$(printf '%s' "$status_json" | jq -r '.elapsedSeconds // 0')"
-
             echo "status=${status} progress=${progress} elapsed=${elapsed}s"
-
             if [ "$status" = "completed" ]; then
               test -s "rendered/${job_id}.mp4"
               exit 0
             fi
-
             if [ "$status" = "failed" ]; then
               printf '%s\n' "$status_json" | jq .
               docker logs tactic-motion-actions || true
               exit 1
             fi
-
             sleep 15
           done
-
-          echo "Render exceeded polling window" >&2
           docker logs tactic-motion-actions || true
           exit 1
 
@@ -201,172 +169,87 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if command -v ffprobe >/dev/null 2>&1 && command -v ffmpeg >/dev/null 2>&1; then
+          if command -v ffmpeg >/dev/null 2>&1 && command -v ffprobe >/dev/null 2>&1; then
             ffmpeg -version | head -n 1
-            exit 0
+          else
+            sudo apt-get update -qq
+            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ffmpeg
           fi
-          sudo apt-get update -qq
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ffmpeg
-          command -v ffmpeg >/dev/null
-          command -v ffprobe >/dev/null
 
-      - name: Create cinematic sports music and master audio
+      - name: Create v7 stadium pulse music and master audio
         shell: bash
         run: |
           set -euo pipefail
-
           input="rendered/${job_id}.mp4"
           tmp="rendered/${job_id}.master.mp4"
           test -s "$input"
-          rm -f "$tmp"
-
           duration="$(ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 "$input")"
           export TACTIC_AUDIO_DURATION="$duration"
-
           python3 - <<'PY'
-          import math
-          import os
-          import wave
+          import math, os, wave
           from array import array
-
-          duration = max(1.0, float(os.environ['TACTIC_AUDIO_DURATION']))
-          run_id = int(os.environ.get('GITHUB_RUN_ID', '1'))
-
-          variant = run_id % 6
-          bpms = [112, 116, 118, 120, 122, 124]
-          roots = [55.00, 58.27, 61.74, 65.41, 73.42, 82.41]
-          progressions = [
-              [0, 5, 3, 7],
-              [0, 3, 7, 5],
-              [0, 7, 5, 3],
-              [0, 5, 8, 3],
-              [0, 8, 5, 7],
-              [0, 3, 5, 8],
-          ]
-          chord_shapes = [
-              [0, 3, 7],
-              [0, 4, 7],
-              [0, 3, 7],
-              [0, 4, 7],
-          ]
-
-          bpm = bpms[variant]
-          root = roots[variant]
-          progression = progressions[variant]
-          beat = 60.0 / bpm
-          bar = beat * 4.0
-          sr = 48000
-          total = int(duration * sr)
-          out = array('h')
-
+          duration=max(1.0,float(os.environ['TACTIC_AUDIO_DURATION']))
+          run_id=int(os.environ.get('GITHUB_RUN_ID','1'))
+          variant=run_id%6
+          bpms=[126,128,130,132,134,136]
+          roots=[48.999,55.0,58.27,61.74,65.41,73.42]
+          progressions=[[0,3,7,5],[0,5,7,3],[0,7,3,5],[0,5,8,7],[0,3,8,5],[0,7,5,8]]
+          bpm=bpms[variant];root=roots[variant];prog=progressions[variant]
+          beat=60.0/bpm; bar=beat*4; sr=48000; total=int(duration*sr); out=array('h')
+          def envexp(x,k): return math.exp(-k*x)
           for i in range(total):
-              t = i / sr
-              beat_index = int(t / beat)
-              beat_phase = t - beat_index * beat
-              bar_index = int(t / bar)
-              bar_phase = t - bar_index * bar
-
-              root_step = progression[bar_index % len(progression)]
-              chord = chord_shapes[bar_index % len(chord_shapes)]
-              base = root * (2.0 ** (root_step / 12.0))
-
-              fade_in = min(1.0, t / 2.2)
-              fade_out = min(1.0, max(0.0, duration - t) / 2.0)
-              master_env = fade_in * fade_out
-
-              pad_env = 0.72 + 0.28 * math.sin(2.0 * math.pi * t / max(5.0, bar * 2.0))
-              pad_l = 0.0
-              pad_r = 0.0
-              for j, semi in enumerate(chord):
-                  f = base * 2.0 * (2.0 ** (semi / 12.0))
-                  amp = 0.030 if j == 0 else 0.022
-                  pad_l += amp * math.sin(2.0 * math.pi * f * t + j * 0.21)
-                  pad_r += amp * math.sin(2.0 * math.pi * (f * 1.0015) * t + j * 0.29)
-              pad_l *= pad_env
-              pad_r *= pad_env
-
-              bass_env = min(1.0, beat_phase / 0.040) * math.exp(-2.6 * beat_phase)
-              bass = 0.105 * bass_env * math.sin(2.0 * math.pi * base * t)
-
-              kick = 0.0
-              if beat_phase < 0.16:
-                  env = math.exp(-24.0 * beat_phase)
-                  freq = 52.0 - 14.0 * min(1.0, beat_phase / 0.16)
-                  kick = 0.15 * env * math.sin(2.0 * math.pi * freq * t)
-
-              eighth = beat / 2.0
-              pulse_phase = t % eighth
-              pulse_env = min(1.0, pulse_phase / 0.018) * math.exp(-8.0 * pulse_phase)
-              arp_semi = chord[(beat_index * 2 + int((t % beat) / eighth)) % len(chord)] + 12
-              arp_f = base * 2.0 * (2.0 ** (arp_semi / 12.0))
-              arp_l = 0.026 * pulse_env * math.sin(2.0 * math.pi * arp_f * t)
-              arp_r = 0.026 * pulse_env * math.sin(2.0 * math.pi * (arp_f * 1.002) * t + 0.18)
-
-              lift = min(1.0, bar_phase / 0.45) if bar_phase < 0.45 else 1.0
-              left = (pad_l + bass + kick + arp_l) * master_env * lift
-              right = (pad_r + bass + kick + arp_r) * master_env * lift
-
-              left = max(-0.82, min(0.82, left))
-              right = max(-0.82, min(0.82, right))
-              out.append(int(left * 32767))
-              out.append(int(right * 32767))
-
-          with wave.open('sports-bed.wav', 'wb') as w:
-              w.setnchannels(2)
-              w.setsampwidth(2)
-              w.setframerate(sr)
-              w.writeframes(out.tobytes())
-
-          music_variant = variant + 1
-          print(f'TACTIC cinematic sports bed variant={music_variant} bpm={bpm} duration={duration:.2f}s')
-          with open('sports-music.env', 'w', encoding='utf-8') as env:
-              env.write(f'MUSIC_VARIANT={music_variant}\n')
-              env.write(f'MUSIC_BPM={bpm}\n')
+            t=i/sr; bp=t%beat; q=t%(beat/4); bi=int(t/beat); bari=int(t/bar)
+            base=root*(2**(prog[bari%4]/12)); fade=min(1,t/1.4)*min(1,max(0,duration-t)/1.8)
+            kick=0
+            if bp<.18:
+              e=envexp(bp,22); freq=58-20*min(1,bp/.18); kick=.20*e*math.sin(2*math.pi*freq*t)
+            tom=0
+            if bi%4 in (1,3) and bp<.20:
+              tom=.075*envexp(bp,15)*math.sin(2*math.pi*(92 if bi%4==1 else 116)*t)
+            bass=.12*min(1,bp/.025)*envexp(bp,3.4)*math.sin(2*math.pi*base*t)
+            stab_phase=t%(beat*2)
+            stab=0
+            if stab_phase<.30:
+              e=envexp(stab_phase,7)
+              stab=.040*e*(math.sin(2*math.pi*base*4*t)+.55*math.sin(2*math.pi*base*5.04*t))
+            arp_e=min(1,q/.012)*envexp(q,12)
+            arp_step=[0,7,12,10][(bi*4+int((t%beat)/(beat/4)))%4]
+            arp=.034*arp_e*math.sin(2*math.pi*base*4*(2**(arp_step/12))*t)
+            pulse=.018*math.sin(2*math.pi*(base*2)*t)+.012*math.sin(2*math.pi*(base*3.01)*t)
+            lift=.86+.14*math.sin(2*math.pi*t/(bar*2))
+            left=(kick+tom+bass+stab+arp+pulse)*fade*lift
+            right=(kick+tom+bass+stab+arp*.96+pulse*.9)*fade*lift
+            left=max(-.84,min(.84,left));right=max(-.84,min(.84,right))
+            out.append(int(left*32767));out.append(int(right*32767))
+          with wave.open('sports-bed.wav','wb') as w:
+            w.setnchannels(2);w.setsampwidth(2);w.setframerate(sr);w.writeframes(out.tobytes())
+          with open('sports-music.env','w',encoding='utf-8') as e:
+            e.write(f'MUSIC_VARIANT=stadium-pulse-{variant+1}\nMUSIC_BPM={bpm}\n')
+          print(f'v7 stadium pulse variant={variant+1} bpm={bpm} duration={duration:.2f}s')
           PY
-
           source sports-music.env
-          music_variant="${MUSIC_VARIANT:-unknown}"
-          music_bpm="${MUSIC_BPM:-unknown}"
-          echo "music_variant=${music_variant}" >> "$GITHUB_ENV"
-          echo "music_bpm=${music_bpm}" >> "$GITHUB_ENV"
-
+          echo "music_variant=${MUSIC_VARIANT}" >> "$GITHUB_ENV"
+          echo "music_bpm=${MUSIC_BPM}" >> "$GITHUB_ENV"
           has_audio="$(ffprobe -v error -select_streams a:0 -show_entries stream=index -of default=nw=1:nk=1 "$input" 2>/dev/null || true)"
-
           if [ -n "$has_audio" ]; then
             ffmpeg -hide_banner -loglevel warning -y \
-              -i "$input" \
-              -i sports-bed.wav \
-              -filter_complex "[1:a]aformat=sample_rates=48000:channel_layouts=stereo,volume=0.16[music];[music][0:a]sidechaincompress=threshold=0.025:ratio=5:attack=35:release=650[ducked];[ducked][0:a]amix=inputs=2:duration=first:weights='0.72 1.0':normalize=0,alimiter=limit=0.93[aout]" \
-              -map 0:v:0 -map "[aout]" \
-              -c:v copy -c:a aac -b:a 192k -ar 48000 -ac 2 \
-              -movflags +faststart -shortest "$tmp"
+              -i "$input" -i sports-bed.wav \
+              -filter_complex "[1:a]aformat=sample_rates=48000:channel_layouts=stereo,volume=0.18[music];[music][0:a]sidechaincompress=threshold=0.022:ratio=6:attack=28:release=720[ducked];[ducked][0:a]amix=inputs=2:duration=first:weights='0.76 1.0':normalize=0,alimiter=limit=0.93[aout]" \
+              -map 0:v:0 -map "[aout]" -c:v copy -c:a aac -b:a 192k -ar 48000 -ac 2 -movflags +faststart -shortest "$tmp"
           else
             ffmpeg -hide_banner -loglevel warning -y \
-              -i "$input" \
-              -i sports-bed.wav \
-              -filter_complex "[1:a]aformat=sample_rates=48000:channel_layouts=stereo,volume=0.20,alimiter=limit=0.90[aout]" \
-              -map 0:v:0 -map "[aout]" \
-              -c:v copy -c:a aac -b:a 192k -ar 48000 -ac 2 \
-              -movflags +faststart -shortest "$tmp"
+              -i "$input" -i sports-bed.wav \
+              -filter_complex "[1:a]aformat=sample_rates=48000:channel_layouts=stereo,volume=0.22,alimiter=limit=0.91[aout]" \
+              -map 0:v:0 -map "[aout]" -c:v copy -c:a aac -b:a 192k -ar 48000 -ac 2 -movflags +faststart -shortest "$tmp"
           fi
-
           test -s "$tmp"
-          final_duration="$(ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 "$tmp")"
-
-          python3 - "$duration" "$final_duration" <<'PY'
+          before="$duration"; after="$(ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 "$tmp")"
+          python3 - "$before" "$after" <<'PY'
           import sys
-          before = float(sys.argv[1])
-          after = float(sys.argv[2])
-          if before < 1.0 or after < 1.0:
-              raise SystemExit(f'Invalid media duration before={before:.3f} after={after:.3f}')
-          if abs(before - after) > 1.0:
-              raise SystemExit(f'Audio master changed duration too much before={before:.3f} after={after:.3f}')
-          print(f'Audio master duration verified: {after:.3f}s')
+          a,b=map(float,sys.argv[1:3])
+          if a<1 or b<1 or abs(a-b)>1: raise SystemExit(f'Invalid duration before={a} after={b}')
           PY
-
           mv "$tmp" "$input"
-          test -s "$input"
-          echo "Audio master complete: cinematic sports variant ${music_variant}, ${music_bpm} BPM"
 
       - name: Verify final MP4
         shell: bash
@@ -374,17 +257,12 @@ jobs:
           set -euo pipefail
           file="rendered/${job_id}.mp4"
           test -s "$file"
-
           ffprobe -v error -show_entries format=duration,size -of json "$file" | tee final-media-info.json
           ffprobe -v error -show_entries stream=index,codec_type,codec_name,width,height,sample_rate,channels -of json "$file" | tee final-stream-info.json
-
           jq -e '.format.duration | tonumber > 1' final-media-info.json >/dev/null
           jq -e '.format.size | tonumber > 100000' final-media-info.json >/dev/null
-          jq -e '[.streams[] | select(.codec_type == "video")] | length >= 1' final-stream-info.json >/dev/null
-          jq -e '[.streams[] | select(.codec_type == "audio")] | length >= 1' final-stream-info.json >/dev/null
           jq -e '[.streams[] | select(.codec_type == "video")][0] | .width == 1080 and .height == 1920' final-stream-info.json >/dev/null
           jq -e '[.streams[] | select(.codec_type == "audio")][0] | (.sample_rate | tonumber) == 48000 and .channels == 2' final-stream-info.json >/dev/null
-          echo "Final MP4 verification passed"
 
       - name: Upload final MP4 to TACTIC Motion storage
         id: publish
@@ -394,47 +272,21 @@ jobs:
           MANUAL_UPLOAD_BASE: "https://personal-tactic-motion.8kospi.easypanel.host"
         run: |
           set -euo pipefail
-
-          upload_base=""
-          request_id=""
-
           if [ "${GITHUB_EVENT_NAME}" = "repository_dispatch" ]; then
             upload_base="$(jq -r '.client_payload.result_upload_base_url // empty' "$GITHUB_EVENT_PATH")"
             request_id="$(jq -r '.client_payload.request_id // empty' "$GITHUB_EVENT_PATH")"
           else
             upload_base="$MANUAL_UPLOAD_BASE"
+            request_id=""
           fi
-
-          if [ -z "$upload_base" ]; then
-            echo "No result_upload_base_url supplied; keeping result as GitHub artifact only."
-            exit 0
-          fi
-
+          if [ -z "$upload_base" ]; then exit 0; fi
           file="rendered/${job_id}.mp4"
-          test -s "$file"
-
-          curl_args=(
-            -fsS
-            --retry 3
-            --retry-delay 3
-            --retry-all-errors
-            -X POST
-            -H "Content-Type: video/mp4"
-            -H "x-file-name: tactic-render-${game_id}.mp4"
-            -H "x-game-id: ${game_id}"
-            -H "x-media-type: rendered_motion"
-            -H "x-music-variant: ${music_variant:-unknown}"
-          )
-
-          if [ -n "$request_id" ]; then
-            curl_args+=( -H "x-request-id: ${request_id}" )
-          fi
-
+          curl_args=(-fsS --retry 3 --retry-delay 3 --retry-all-errors -X POST -H "Content-Type: video/mp4" -H "x-file-name: tactic-render-${game_id}.mp4" -H "x-game-id: ${game_id}" -H "x-media-type: rendered_motion" -H "x-music-variant: ${music_variant:-unknown}")
+          if [ -n "$request_id" ]; then curl_args+=( -H "x-request-id: ${request_id}" ); fi
           response="$(curl "${curl_args[@]}" --data-binary "@${file}" "${upload_base%/}/assets")"
           printf '%s\n' "$response" | tee uploaded-result.json
           result_url="$(printf '%s' "$response" | jq -er '.url')"
           echo "result_url=${result_url}" >> "$GITHUB_OUTPUT"
-          echo "RESULT URL: ${result_url}"
 
       - name: Build result manifest
         if: ${{ success() }}
@@ -442,10 +294,7 @@ jobs:
         run: |
           set -euo pipefail
           result_url=""
-          if [ -f uploaded-result.json ]; then
-            result_url="$(jq -r '.url // empty' uploaded-result.json)"
-          fi
-
+          if [ -f uploaded-result.json ]; then result_url="$(jq -r '.url // empty' uploaded-result.json)"; fi
           jq -n \
             --arg jobId "$job_id" \
             --arg gameId "$game_id" \
@@ -454,18 +303,7 @@ jobs:
             --arg repository "$GITHUB_REPOSITORY" \
             --arg musicVariant "${music_variant:-unknown}" \
             --arg musicBpm "${music_bpm:-unknown}" \
-            '{
-              ok: true,
-              renderer: "github-actions",
-              template: "TACTIC_V5_7_ALAIN_MASTER",
-              jobId: $jobId,
-              gameId: ($gameId | tonumber),
-              resultUrl: (if $resultUrl == "" then null else $resultUrl end),
-              githubRunId: ($runId | tonumber),
-              repository: $repository,
-              musicVariant: $musicVariant,
-              musicBpm: $musicBpm
-            }' | tee rendered/result.json
+            '{ok:true,renderer:"github-actions",template:"TACTIC_V7_0_DYNAMIC",jobId:$jobId,gameId:($gameId|tonumber),resultUrl:(if $resultUrl=="" then null else $resultUrl end),githubRunId:($runId|tonumber),repository:$repository,musicVariant:$musicVariant,musicBpm:$musicBpm}' | tee rendered/result.json
 
       - name: Upload rendered video artifact
         if: ${{ success() }}
