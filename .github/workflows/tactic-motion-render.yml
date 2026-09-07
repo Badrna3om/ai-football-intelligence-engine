@@ -69,8 +69,9 @@ jobs:
           fi
 
           jq -e '.gameId and .homeTeam and .awayTeam' render-payload.json >/dev/null
-          echo "game_id=$(jq -r '.gameId' render-payload.json)" >> "$GITHUB_ENV"
-          echo "Rendering game $(jq -r '.gameId' render-payload.json): $(jq -r '.homeTeam' render-payload.json) vs $(jq -r '.awayTeam' render-payload.json)"
+          game_id="$(jq -r '.gameId' render-payload.json)"
+          echo "game_id=${game_id}" >> "$GITHUB_ENV"
+          echo "Rendering game ${game_id}: $(jq -r '.homeTeam' render-payload.json) vs $(jq -r '.awayTeam' render-payload.json)"
 
       - name: Validate remote media assets
         shell: bash
@@ -83,6 +84,7 @@ jobs:
 
           p = json.loads(Path('render-payload.json').read_text())
           urls = []
+
           for label, url in [
               ('highlights', p.get('highlightsVideoUrl')),
               ('home_badge', (p.get('assets') or {}).get('homeBadgeUrl')),
@@ -101,8 +103,13 @@ jobs:
           for label, url in urls:
               print(f'Checking {label}: {url}')
               subprocess.run([
-                  'curl', '-fLsS', '--retry', '3', '--retry-delay', '2',
-                  '--range', '0-0', '-o', '/dev/null', url
+                  'curl',
+                  '-fLsS',
+                  '--retry', '3',
+                  '--retry-delay', '2',
+                  '--range', '0-0',
+                  '-o', '/dev/null',
+                  url,
               ], check=True)
           PY
 
@@ -124,6 +131,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p rendered state
+
           docker run -d \
             --name tactic-motion-actions \
             -p 18080:80 \
@@ -149,30 +157,31 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          response=$(curl -fsS \
+
+          response="$(curl -fsS \
             -X POST \
             -H 'Content-Type: application/json' \
             --data-binary @render-payload.json \
-            http://127.0.0.1:18080/renders)
+            http://127.0.0.1:18080/renders)"
 
           printf '%s\n' "$response" | tee create-job.json
-          job_id=$(printf '%s' "$response" | jq -er '.jobId')
-          echo "job_id=$job_id" >> "$GITHUB_ENV"
+
+          job_id="$(printf '%s' "$response" | jq -er '.jobId')"
+          echo "job_id=${job_id}" >> "$GITHUB_ENV"
           echo "$job_id" > job-id.txt
 
       - name: Wait for render completion
         shell: bash
         run: |
           set -euo pipefail
-          job_id="${job_id}"
 
           for i in $(seq 1 360); do
-            status_json=$(curl -fsS "http://127.0.0.1:18080/renders/${job_id}")
+            status_json="$(curl -fsS "http://127.0.0.1:18080/renders/${job_id}")"
             printf '%s\n' "$status_json" > render-status.json
 
-            status=$(printf '%s' "$status_json" | jq -r '.status')
-            progress=$(printf '%s' "$status_json" | jq -r '.progress // 0')
-            elapsed=$(printf '%s' "$status_json" | jq -r '.elapsedSeconds // 0')
+            status="$(printf '%s' "$status_json" | jq -r '.status')"
+            progress="$(printf '%s' "$status_json" | jq -r '.progress // 0')"
+            elapsed="$(printf '%s' "$status_json" | jq -r '.elapsedSeconds // 0')"
 
             echo "status=${status} progress=${progress} elapsed=${elapsed}s"
 
@@ -190,24 +199,37 @@ jobs:
             sleep 15
           done
 
-          echo "Render exceeded 90-minute workflow timeout window" >&2
+          echo "Render exceeded polling window" >&2
           docker logs tactic-motion-actions || true
           exit 1
+
+      - name: Install FFmpeg on runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          if command -v ffprobe >/dev/null 2>&1 && command -v ffmpeg >/dev/null 2>&1; then
+            ffmpeg -version | head -n 1
+            exit 0
+          fi
+
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ffmpeg
+          command -v ffmpeg >/dev/null
+          command -v ffprobe >/dev/null
+          ffmpeg -version | head -n 1
 
       - name: Create varied sports music and master audio
         shell: bash
         run: |
           set -euo pipefail
 
-          if ! command -v ffprobe >/dev/null 2>&1 || ! command -v ffmpeg >/dev/null 2>&1; then
-            sudo apt-get update -qq
-            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ffmpeg
-          fi
-
           input="rendered/${job_id}.mp4"
-          test -s "$input"
+          tmp="rendered/${job_id}.master.mp4"
 
-          duration=$(ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 "$input")
+          test -s "$input"
+          rm -f "$tmp"
+
+          duration="$(ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 "$input")"
           export TACTIC_AUDIO_DURATION="$duration"
 
           python3 - <<'PY'
@@ -219,6 +241,7 @@ jobs:
 
           duration = max(1.0, float(os.environ['TACTIC_AUDIO_DURATION']))
           run_id = int(os.environ.get('GITHUB_RUN_ID', '1'))
+
           variant = run_id % 5
           bpms = [128, 132, 136, 140, 144]
           roots = [49.00, 55.00, 58.27, 61.74, 65.41]
@@ -268,8 +291,8 @@ jobs:
               pulse_phase = t % (beat * 2.0)
               pulse_env = math.exp(-3.2 * pulse_phase) if pulse_phase < beat else 0.0
               pulse = 0.055 * pulse_env * (
-                  math.sin(2.0 * math.pi * bass_freq * 4.0 * t) +
-                  0.45 * math.sin(2.0 * math.pi * bass_freq * 6.0 * t)
+                  math.sin(2.0 * math.pi * bass_freq * 4.0 * t)
+                  + 0.45 * math.sin(2.0 * math.pi * bass_freq * 6.0 * t)
               )
 
               rise = min(1.0, t / 1.8)
@@ -285,7 +308,10 @@ jobs:
               w.writeframes(out.tobytes())
 
           music_variant = variant + 1
-          print(f'TACTIC music variant={music_variant} bpm={bpm} root={root:.2f}Hz duration={duration:.2f}s')
+          print(
+              f'TACTIC music variant={music_variant} '
+              f'bpm={bpm} root={root:.2f}Hz duration={duration:.2f}s'
+          )
 
           with open('sports-music.env', 'w', encoding='utf-8') as env:
               env.write(f'MUSIC_VARIANT={music_variant}\n')
@@ -293,87 +319,102 @@ jobs:
           PY
 
           source sports-music.env
-          music_variant="${MUSIC_VARIANT}"
-          music_bpm="${MUSIC_BPM}"
+
+          music_variant="${MUSIC_VARIANT:-unknown}"
+          music_bpm="${MUSIC_BPM:-unknown}"
+
           echo "music_variant=${music_variant}" >> "$GITHUB_ENV"
           echo "music_bpm=${music_bpm}" >> "$GITHUB_ENV"
 
-          tmp="rendered/${job_id}.master.mp4"
-          rm -f "$tmp"
+          has_audio="$(
+            ffprobe \
+              -v error \
+              -select_streams a:0 \
+              -show_entries stream=index \
+              -of default=nw=1:nk=1 \
+              "$input" 2>/dev/null || true
+          )"
 
-          if ffprobe -v error -select_streams a:0 -show_entries stream=index -of csv=p=0 "$input" | grep -q .; then
+          if [ -n "$has_audio" ]; then
             ffmpeg -hide_banner -loglevel warning -y \
               -i "$input" \
               -i sports-bed.wav \
               -filter_complex "[1:a]aformat=sample_rates=48000:channel_layouts=stereo,volume=0.34[music];[music][0:a]sidechaincompress=threshold=0.018:ratio=9:attack=20:release=480[ducked];[ducked][0:a]amix=inputs=2:duration=first:weights='0.82 1.15':normalize=0,alimiter=limit=0.95[aout]" \
-              -map 0:v:0 -map "[aout]" \
-              -c:v copy -c:a aac -b:a 192k -ar 48000 -ac 2 \
-              -movflags +faststart -shortest "$tmp"
+              -map 0:v:0 \
+              -map "[aout]" \
+              -c:v copy \
+              -c:a aac \
+              -b:a 192k \
+              -ar 48000 \
+              -ac 2 \
+              -movflags +faststart \
+              -shortest \
+              "$tmp"
           else
             ffmpeg -hide_banner -loglevel warning -y \
               -i "$input" \
               -i sports-bed.wav \
               -filter_complex "[1:a]aformat=sample_rates=48000:channel_layouts=stereo,volume=0.34,alimiter=limit=0.95[aout]" \
-              -map 0:v:0 -map "[aout]" \
-              -c:v copy -c:a aac -b:a 192k -ar 48000 -ac 2 \
-              -movflags +faststart -shortest "$tmp"
+              -map 0:v:0 \
+              -map "[aout]" \
+              -c:v copy \
+              -c:a aac \
+              -b:a 192k \
+              -ar 48000 \
+              -ac 2 \
+              -movflags +faststart \
+              -shortest \
+              "$tmp"
           fi
 
           test -s "$tmp"
 
-          final_duration=$(ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 "$tmp")
-          video_streams=$(ffprobe -v error -select_streams v -show_entries stream=index -of csv=p=0 "$tmp" | wc -l)
-          audio_streams=$(ffprobe -v error -select_streams a -show_entries stream=index -of csv=p=0 "$tmp" | wc -l)
-          dimensions=$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 "$tmp")
-          audio_rate=$(ffprobe -v error -select_streams a:0 -show_entries stream=sample_rate -of default=nw=1:nk=1 "$tmp")
-          audio_channels=$(ffprobe -v error -select_streams a:0 -show_entries stream=channels -of default=nw=1:nk=1 "$tmp")
+          final_duration="$(ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 "$tmp")"
 
           python3 - "$duration" "$final_duration" <<'PY'
           import sys
+
           before = float(sys.argv[1])
           after = float(sys.argv[2])
-          if before < 1.0 or after < 1.0:
-              raise SystemExit(f'Invalid media duration before={before} after={after}')
-          if abs(before - after) > 1.0:
-              raise SystemExit(f'Audio master changed duration too much before={before:.3f} after={after:.3f}')
-          print(f'Duration verified: {after:.3f}s')
-          PY
 
-          if [ "$video_streams" -lt 1 ]; then
-            echo "Final master has no video stream" >&2
-            exit 1
-          fi
-          if [ "$audio_streams" -lt 1 ]; then
-            echo "Final master has no audio stream" >&2
-            exit 1
-          fi
-          if [ "$dimensions" != "1080x1920" ]; then
-            echo "Unexpected final dimensions: $dimensions" >&2
-            exit 1
-          fi
-          if [ "$audio_rate" != "48000" ]; then
-            echo "Unexpected final audio sample rate: $audio_rate" >&2
-            exit 1
-          fi
-          if [ "$audio_channels" -ne 2 ]; then
-            echo "Unexpected final audio channel count: $audio_channels" >&2
-            exit 1
-          fi
+          if before < 1.0 or after < 1.0:
+              raise SystemExit(
+                  f'Invalid media duration before={before:.3f} after={after:.3f}'
+              )
+
+          if abs(before - after) > 1.0:
+              raise SystemExit(
+                  f'Audio master changed duration too much '
+                  f'before={before:.3f} after={after:.3f}'
+              )
+
+          print(f'Audio master duration verified: {after:.3f}s')
+          PY
 
           mv "$tmp" "$input"
           test -s "$input"
 
-          echo "Audio master complete: sports variant ${music_variant}, ${music_bpm} BPM, stereo 48kHz"
+          echo "Audio master complete: sports variant ${music_variant}, ${music_bpm} BPM"
 
       - name: Verify final MP4
         shell: bash
         run: |
           set -euo pipefail
+
           file="rendered/${job_id}.mp4"
           test -s "$file"
 
-          ffprobe -v error -show_entries format=duration,size -of json "$file" | tee final-media-info.json
-          ffprobe -v error -show_entries stream=index,codec_type,codec_name,width,height,sample_rate,channels -of json "$file" | tee final-stream-info.json
+          ffprobe \
+            -v error \
+            -show_entries format=duration,size \
+            -of json \
+            "$file" | tee final-media-info.json
+
+          ffprobe \
+            -v error \
+            -show_entries stream=index,codec_type,codec_name,width,height,sample_rate,channels \
+            -of json \
+            "$file" | tee final-stream-info.json
 
           jq -e '.format.duration | tonumber > 1' final-media-info.json >/dev/null
           jq -e '.format.size | tonumber > 100000' final-media-info.json >/dev/null
@@ -397,8 +438,8 @@ jobs:
           request_id=""
 
           if [ "${GITHUB_EVENT_NAME}" = "repository_dispatch" ]; then
-            upload_base=$(jq -r '.client_payload.result_upload_base_url // empty' "$GITHUB_EVENT_PATH")
-            request_id=$(jq -r '.client_payload.request_id // empty' "$GITHUB_EVENT_PATH")
+            upload_base="$(jq -r '.client_payload.result_upload_base_url // empty' "$GITHUB_EVENT_PATH")"
+            request_id="$(jq -r '.client_payload.request_id // empty' "$GITHUB_EVENT_PATH")"
           else
             upload_base="$MANUAL_UPLOAD_BASE"
           fi
@@ -428,23 +469,27 @@ jobs:
             curl_args+=( -H "x-request-id: ${request_id}" )
           fi
 
-          response=$(curl "${curl_args[@]}" \
-            --data-binary "@${file}" \
-            "${upload_base%/}/assets")
+          response="$(
+            curl "${curl_args[@]}" \
+              --data-binary "@${file}" \
+              "${upload_base%/}/assets"
+          )"
 
           printf '%s\n' "$response" | tee uploaded-result.json
-          result_url=$(printf '%s' "$response" | jq -er '.url')
-          echo "result_url=$result_url" >> "$GITHUB_OUTPUT"
-          echo "RESULT URL: $result_url"
+
+          result_url="$(printf '%s' "$response" | jq -er '.url')"
+          echo "result_url=${result_url}" >> "$GITHUB_OUTPUT"
+          echo "RESULT URL: ${result_url}"
 
       - name: Build result manifest
         if: ${{ success() }}
         shell: bash
         run: |
           set -euo pipefail
+
           result_url=""
           if [ -f uploaded-result.json ]; then
-            result_url=$(jq -r '.url // empty' uploaded-result.json)
+            result_url="$(jq -r '.url // empty' uploaded-result.json)"
           fi
 
           jq -n \
