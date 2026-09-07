@@ -205,6 +205,8 @@ jobs:
           fi
 
           input="rendered/${job_id}.mp4"
+          test -s "$input"
+
           duration=$(ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 "$input")
           export TACTIC_AUDIO_DURATION="$duration"
 
@@ -227,11 +229,12 @@ jobs:
               [0, 7, 5, 3, 0, 5, 8, 7],
               [0, 3, 7, 5, 8, 7, 5, 3],
           ]
+
           bpm = bpms[variant]
           root = roots[variant]
           pattern = patterns[variant]
           beat = 60.0 / bpm
-          sr = 22050
+          sr = 44100
           total = int(duration * sr)
           rng = random.Random(run_id)
           out = array('h')
@@ -281,31 +284,105 @@ jobs:
               w.setframerate(sr)
               w.writeframes(out.tobytes())
 
-          print(f'TACTIC music variant={variant + 1} bpm={bpm} root={root:.2f}Hz duration={duration:.2f}s')
-          with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as env:
-              env.write(f'music_variant={variant + 1}\n')
-              env.write(f'music_bpm={bpm}\n')
+          music_variant = variant + 1
+          print(f'TACTIC music variant={music_variant} bpm={bpm} root={root:.2f}Hz duration={duration:.2f}s')
+
+          with open('sports-music.env', 'w', encoding='utf-8') as env:
+              env.write(f'MUSIC_VARIANT={music_variant}\n')
+              env.write(f'MUSIC_BPM={bpm}\n')
           PY
 
+          source sports-music.env
+          music_variant="${MUSIC_VARIANT}"
+          music_bpm="${MUSIC_BPM}"
+          echo "music_variant=${music_variant}" >> "$GITHUB_ENV"
+          echo "music_bpm=${music_bpm}" >> "$GITHUB_ENV"
+
           tmp="rendered/${job_id}.master.mp4"
+          rm -f "$tmp"
+
           if ffprobe -v error -select_streams a:0 -show_entries stream=index -of csv=p=0 "$input" | grep -q .; then
-            ffmpeg -y \
+            ffmpeg -hide_banner -loglevel warning -y \
               -i "$input" \
               -i sports-bed.wav \
-              -filter_complex "[1:a]volume=0.36[music];[music][0:a]sidechaincompress=threshold=0.018:ratio=9:attack=20:release=480[ducked];[ducked][0:a]amix=inputs=2:duration=first:weights='0.82 1.15':normalize=0,alimiter=limit=0.95[aout]" \
+              -filter_complex "[1:a]aformat=sample_rates=48000:channel_layouts=stereo,volume=0.34[music];[music][0:a]sidechaincompress=threshold=0.018:ratio=9:attack=20:release=480[ducked];[ducked][0:a]amix=inputs=2:duration=first:weights='0.82 1.15':normalize=0,alimiter=limit=0.95[aout]" \
               -map 0:v:0 -map "[aout]" \
-              -c:v copy -c:a aac -b:a 192k -shortest "$tmp"
+              -c:v copy -c:a aac -b:a 192k -ar 48000 -ac 2 \
+              -movflags +faststart -shortest "$tmp"
           else
-            ffmpeg -y \
+            ffmpeg -hide_banner -loglevel warning -y \
               -i "$input" \
               -i sports-bed.wav \
-              -filter_complex "[1:a]volume=0.34,alimiter=limit=0.95[aout]" \
+              -filter_complex "[1:a]aformat=sample_rates=48000:channel_layouts=stereo,volume=0.34,alimiter=limit=0.95[aout]" \
               -map 0:v:0 -map "[aout]" \
-              -c:v copy -c:a aac -b:a 192k -shortest "$tmp"
+              -c:v copy -c:a aac -b:a 192k -ar 48000 -ac 2 \
+              -movflags +faststart -shortest "$tmp"
+          fi
+
+          test -s "$tmp"
+
+          final_duration=$(ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 "$tmp")
+          video_streams=$(ffprobe -v error -select_streams v -show_entries stream=index -of csv=p=0 "$tmp" | wc -l)
+          audio_streams=$(ffprobe -v error -select_streams a -show_entries stream=index -of csv=p=0 "$tmp" | wc -l)
+          dimensions=$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 "$tmp")
+          audio_rate=$(ffprobe -v error -select_streams a:0 -show_entries stream=sample_rate -of default=nw=1:nk=1 "$tmp")
+          audio_channels=$(ffprobe -v error -select_streams a:0 -show_entries stream=channels -of default=nw=1:nk=1 "$tmp")
+
+          python3 - "$duration" "$final_duration" <<'PY'
+          import sys
+          before = float(sys.argv[1])
+          after = float(sys.argv[2])
+          if before < 1.0 or after < 1.0:
+              raise SystemExit(f'Invalid media duration before={before} after={after}')
+          if abs(before - after) > 1.0:
+              raise SystemExit(f'Audio master changed duration too much before={before:.3f} after={after:.3f}')
+          print(f'Duration verified: {after:.3f}s')
+          PY
+
+          if [ "$video_streams" -lt 1 ]; then
+            echo "Final master has no video stream" >&2
+            exit 1
+          fi
+          if [ "$audio_streams" -lt 1 ]; then
+            echo "Final master has no audio stream" >&2
+            exit 1
+          fi
+          if [ "$dimensions" != "1080x1920" ]; then
+            echo "Unexpected final dimensions: $dimensions" >&2
+            exit 1
+          fi
+          if [ "$audio_rate" != "48000" ]; then
+            echo "Unexpected final audio sample rate: $audio_rate" >&2
+            exit 1
+          fi
+          if [ "$audio_channels" -ne 2 ]; then
+            echo "Unexpected final audio channel count: $audio_channels" >&2
+            exit 1
           fi
 
           mv "$tmp" "$input"
-          echo "Audio master complete: sports variant ${music_variant}, ${music_bpm} BPM"
+          test -s "$input"
+
+          echo "Audio master complete: sports variant ${music_variant}, ${music_bpm} BPM, stereo 48kHz"
+
+      - name: Verify final MP4
+        shell: bash
+        run: |
+          set -euo pipefail
+          file="rendered/${job_id}.mp4"
+          test -s "$file"
+
+          ffprobe -v error -show_entries format=duration,size -of json "$file" | tee final-media-info.json
+          ffprobe -v error -show_entries stream=index,codec_type,codec_name,width,height,sample_rate,channels -of json "$file" | tee final-stream-info.json
+
+          jq -e '.format.duration | tonumber > 1' final-media-info.json >/dev/null
+          jq -e '.format.size | tonumber > 100000' final-media-info.json >/dev/null
+          jq -e '[.streams[] | select(.codec_type == "video")] | length >= 1' final-stream-info.json >/dev/null
+          jq -e '[.streams[] | select(.codec_type == "audio")] | length >= 1' final-stream-info.json >/dev/null
+          jq -e '[.streams[] | select(.codec_type == "video")][0] | .width == 1080 and .height == 1920' final-stream-info.json >/dev/null
+          jq -e '[.streams[] | select(.codec_type == "audio")][0] | (.sample_rate | tonumber) == 48000 and .channels == 2' final-stream-info.json >/dev/null
+
+          echo "Final MP4 verification passed"
 
       - name: Upload final MP4 to TACTIC Motion storage
         id: publish
@@ -332,10 +409,13 @@ jobs:
           fi
 
           file="rendered/${job_id}.mp4"
+          test -s "$file"
+
           curl_args=(
             -fsS
             --retry 3
             --retry-delay 3
+            --retry-all-errors
             -X POST
             -H "Content-Type: video/mp4"
             -H "x-file-name: tactic-render-${game_id}.mp4"
@@ -396,6 +476,8 @@ jobs:
           path: |
             rendered/${{ env.job_id }}.mp4
             rendered/result.json
+            final-media-info.json
+            final-stream-info.json
           retention-days: 3
           if-no-files-found: error
 
@@ -415,5 +497,8 @@ jobs:
             render-payload.json
             render-status.json
             create-job.json
+            final-media-info.json
+            final-stream-info.json
+            sports-music.env
           retention-days: 3
           if-no-files-found: ignore
