@@ -1,6 +1,7 @@
 {
   "githubActionsTest": false,
-  "templateKey": "TACTIC_MASTER_CINEMATIC_V2",
+  "templateKey": "TACTIC_MASTER_CINEMATIC_V3_FIRST_ACT",
+  "v3FirstActPreview": true,
   "previewCardsOnly": false,
   "language": "ar",
   "direction": "rtl",
