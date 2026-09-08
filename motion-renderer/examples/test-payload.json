@@ -1,8 +1,9 @@
 {
   "githubActionsTest": false,
-  "templateKey": "TACTIC_MASTER_CINEMATIC_V6_FIRST_ACT",
+  "templateKey": "TACTIC_MASTER_CINEMATIC_V6_FULL_MATCH",
   "v3FirstActPreview": false,
   "v6FirstActPreview": true,
+  "v6FullMatchPreview": true,
   "v6FootageUrl": null,
   "v6FirstGoalScorer": "جون مكجين",
   "v6FirstGoalMinute": "11′",
@@ -15,7 +16,9 @@
   "v6RoundLabel": "الجولة 1",
   "v6HomeRankLabel": "—",
   "v6AwayRankLabel": "—",
-  "v6RankContext": "الجولة الافتتاحية — غير مكتمل",
+  "v6RankContext": "الجولة الافتتاحية — الترتيب غير مكتمل",
+  "v6XgHome": 1.46,
+  "v6XgAway": 3.0,
   "v6GoalsSummary": [
     {"side":"home","scorer":"هوغو فيتلسين","minute":"19′","assist":"يان فيرجيلي"},
     {"side":"home","scorer":"نيكولو تريزولدي","minute":"61′","assist":null,"note":"ركلة جزاء"},
@@ -23,6 +26,25 @@
     {"side":"away","scorer":"إيمليانو بوينديا","minute":"22′","assist":"جواو غوميز"},
     {"side":"away","scorer":"نيكولاس جاكسون","minute":"43′","assist":"باو توريس"}
   ],
+  "v6GoalScenes": [
+    {"file":"v6-goal-1.mp4","side":"away","scorer":"جون مكجين","minute":"11′","assist":"باو توريس","team":"أستون فيلا","label":"الهدف الأول","scoreAfter":"0–1"},
+    {"file":"v6-goal-2.mp4","side":"home","scorer":"هوغو فيتلسين","minute":"19′","assist":"يان فيرجيلي","team":"كلوب بروج","label":"هدف التعادل","scoreAfter":"1–1"},
+    {"file":"v6-goal-3.mp4","side":"away","scorer":"إيمليانو بوينديا","minute":"22′","assist":"جواو غوميز","team":"أستون فيلا","label":"هدف التقدم","scoreAfter":"1–2"},
+    {"file":"v6-goal-4.mp4","side":"away","scorer":"نيكولاس جاكسون","minute":"43′","assist":"باو توريس","team":"أستون فيلا","label":"هدف الفوز","scoreAfter":"1–3"},
+    {"file":"v6-goal-5.mp4","side":"home","scorer":"نيكولو تريزولدي","minute":"61′","assist":null,"team":"كلوب بروج","label":"تقليص الفارق","scoreAfter":"2–3"}
+  ],
+  "v6Motm": {
+    "name": "نيكولاس جاكسون",
+    "team": "أستون فيلا",
+    "rating": 8.3,
+    "note": "تعادل أعلى تقييم بالمباراة • سجل هدف الفوز",
+    "stats": [
+      {"label":"الأهداف","value":"1"},
+      {"label":"التسديدات","value":"3"},
+      {"label":"على المرمى","value":"2"},
+      {"label":"تمريرات مفتاحية","value":"3"}
+    ]
+  },
   "previewCardsOnly": false,
   "language": "ar",
   "direction": "rtl",
@@ -44,14 +66,14 @@
     {"id":"possession","headline":"الاستحواذ","metric":"الاستحواذ %","homeValue":64,"awayValue":36,"homeLabel":"كلوب بروج","awayLabel":"أستون فيلا","visual":"possession_bar"}
   ],
   "starPlayer": {
-    "playerId": 65280617,
-    "name": "نيكولو تريزولدي",
-    "nameEn": "Nicolò Tresoldi",
-    "teamId": 1169,
-    "team": "كلوب بروج",
+    "playerId": 52355416,
+    "name": "نيكولاس جاكسون",
+    "nameEn": "Nicolas Jackson",
+    "teamId": 109,
+    "team": "أستون فيلا",
     "rating": 8.3,
     "position": "Attacker",
-    "stats": {"Goals":"1","Total Shots":"5","Shots On Target":"3","Rating":"8.3"},
+    "stats": {"Goals":"1","Total Shots":"3","Shots On Target":"2","Key Passes":"3","Rating":"8.3"},
     "photoUrl": null
   },
   "match": {
@@ -62,18 +84,8 @@
     "startTime": "2026-09-08T16:45:00.000Z",
     "venue": "Jan Breydelstadion",
     "referee": "Sandro Schärer",
-    "home": {
-      "id": 1169,
-      "name": "كلوب بروج",
-      "score": 2,
-      "badgeUrl": "https://imagecache.365scores.com/image/upload/f_png,c_limit,q_auto:eco,dpr_1/Competitors/1169"
-    },
-    "away": {
-      "id": 109,
-      "name": "أستون فيلا",
-      "score": 3,
-      "badgeUrl": "https://r2.thesportsdb.com/images/media/team/badge/cgvxt61785930389.png"
-    }
+    "home": {"id":1169,"name":"كلوب بروج","score":2,"badgeUrl":"https://imagecache.365scores.com/image/upload/f_png,c_limit,q_auto:eco,dpr_1/Competitors/1169"},
+    "away": {"id":109,"name":"أستون فيلا","score":3,"badgeUrl":"https://r2.thesportsdb.com/images/media/team/badge/cgvxt61785930389.png"}
   },
   "assets": {
     "homeBadgeUrl": "https://imagecache.365scores.com/image/upload/f_png,c_limit,q_auto:eco,dpr_1/Competitors/1169",
@@ -82,16 +94,6 @@
     "tacticLogoUrl": null,
     "starPlayerPhotoUrl": null
   },
-  "design": {
-    "homeColor": "#1154D8",
-    "awayColor": "#7A2048"
-  },
-  "motionTiming": {
-    "introSeconds": 1.3,
-    "matchupSeconds": 3.5,
-    "finalScoreSeconds": 2.7,
-    "statsCardSeconds": 5.0,
-    "starPlayerSeconds": 6.0,
-    "outroSeconds": 4.2
-  }
+  "design": {"homeColor":"#1154D8","awayColor":"#7A2048"},
+  "motionTiming": {"introSeconds":1.3,"matchupSeconds":3.5,"finalScoreSeconds":2.7,"statsCardSeconds":5.0,"starPlayerSeconds":6.0,"outroSeconds":4.2}
 }
