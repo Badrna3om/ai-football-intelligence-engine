@@ -262,6 +262,7 @@ const ScoreHero: React.FC<{p: MatchProps}> = ({p}) => {
   const awayNum = Math.round(mix(f, 150, 178, 0, s.away));
   const homeX = -185 - exit * 330;
   const awayX = 185 + exit * 330;
+  const teamLabelOpacity = phase(f, 160, 178) * (1 - exit);
 
   return (
     <>
@@ -275,10 +276,8 @@ const ScoreHero: React.FC<{p: MatchProps}> = ({p}) => {
         </div>
       </div>
 
-      <div dir="rtl" style={{position: "absolute", left: 52, right: 52, top: 1260, display: "flex", justifyContent: "space-between", alignItems: "center", fontFamily: cairo, color: "white", fontSize: 34, fontWeight: 900, opacity: phase(f, 160, 178) * (1 - exit), zIndex: 12, textShadow: "0 10px 28px rgba(0,0,0,.72)"}}>
-        <span>{p.homeTeam}</span>
-        <span>{p.awayTeam}</span>
-      </div>
+      <div dir="rtl" style={{position: "absolute", left: 54, top: 1260, width: 410, textAlign: "center", fontFamily: cairo, color: "white", fontSize: 34, fontWeight: 900, opacity: teamLabelOpacity, zIndex: 12, textShadow: "0 10px 28px rgba(0,0,0,.72)"}}>{p.homeTeam}</div>
+      <div dir="rtl" style={{position: "absolute", right: 54, top: 1260, width: 410, textAlign: "center", fontFamily: cairo, color: "white", fontSize: 34, fontWeight: 900, opacity: teamLabelOpacity, zIndex: 12, textShadow: "0 10px 28px rgba(0,0,0,.72)"}}>{p.awayTeam}</div>
     </>
   );
 };
