@@ -1,5 +1,5 @@
-name: TACTIC V6 Broadcast Act A
-run-name: TACTIC V6 Broadcast Act A ${{ github.run_id }}
+name: TACTIC V6 Full Match
+run-name: TACTIC V6 Full Match ${{ github.run_id }}
 
 on:
   push:
@@ -17,7 +17,7 @@ concurrency:
 jobs:
   render:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -30,38 +30,80 @@ jobs:
           fi
           ffmpeg -version | head -n 1
 
-      - name: Prepare real match media and TACTIC logo
+      - name: Prepare five real goal clips and brand assets
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p motion-renderer/public
 
-          SOURCE="https://drive.usercontent.google.com/download?id=1di9B2Jo2v6yxvkYhC-rgcgLZDRqrj8-H&export=download&confirm=t"
-          curl -fL --retry 3 --retry-delay 2 "$SOURCE" -o /tmp/v6-goal-source.mp4
-          test -s /tmp/v6-goal-source.mp4
-          ffprobe -v error -show_entries format=duration,size -of json /tmp/v6-goal-source.mp4
+          dl() {
+            local id="$1"
+            local out="$2"
+            curl -fL --retry 4 --retry-delay 2 --retry-all-errors \
+              "https://drive.usercontent.google.com/download?id=${id}&export=download&confirm=t" \
+              -o "$out"
+            test -s "$out"
+          }
 
-          # Continuous vertical world used behind intro / matchup / score and blurred behind the goal card.
-          ffmpeg -hide_banner -loglevel warning -y -ss 4.0 -i /tmp/v6-goal-source.mp4 -t 12.3 \
-            -vf "scale=-2:1280,crop=720:1280:(iw-ow)/2:0" \
+          # Goal 1 — John McGinn 11' (same source already visually approved in Act A).
+          dl "1di9B2Jo2v6yxvkYhC-rgcgLZDRqrj8-H" /tmp/goal1.mp4
+          # Goal 2 — Hugo Vetlesen 19'.
+          dl "1f-MhGTDYIPXsd-rK85wURYnWWWzgTRoB" /tmp/goal2.mp4
+          # Goal 3 — Emiliano Buendia 22'.
+          dl "1fzUYezsdciIyTWh20D1qihJneql2QRiX" /tmp/goal3.mp4
+          # Goal 4 — Nicolas Jackson 43'.
+          dl "17-cKB_6MJ0NDngV_rAAAcVLw2DKMHSRx" /tmp/goal4.mp4
+          # Goal 5 — Nicolo Tresoldi 61' pen.
+          dl "1Ho55km_iv6FT1P8_aXzanYw5xaqDiJX3" /tmp/goal5.mp4
+
+          for f in /tmp/goal{1,2,3,4,5}.mp4; do
+            ffprobe -v error -show_entries format=duration,size -of json "$f"
+          done
+
+          # Continuous vertical world behind intro/matchup/score/stats.
+          ffmpeg -hide_banner -loglevel warning -y -ss 4.0 -i /tmp/goal1.mp4 -t 12.3 \
+            -vf "scale=-2:1280,crop=720:1280:(iw-ow)/2:0,fps=30" \
             -c:v libx264 -preset fast -crf 20 -c:a aac -b:a 160k -ar 48000 -ac 2 -movflags +faststart \
             motion-renderer/public/v6-world-bg.mp4
 
-          # The actual goal stays landscape inside the framed 16:9 broadcast window.
-          ffmpeg -hide_banner -loglevel warning -y -ss 8.5 -i /tmp/v6-goal-source.mp4 -t 4.2 \
-            -vf "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2" \
+          # First framed goal used by the approved Act A.
+          ffmpeg -hide_banner -loglevel warning -y -ss 8.5 -i /tmp/goal1.mp4 -t 4.8 \
+            -vf "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,fps=30" \
             -c:v libx264 -preset fast -crf 19 -c:a aac -b:a 160k -ar 48000 -ac 2 -movflags +faststart \
             motion-renderer/public/v6-goal-window.mp4
 
-          TACTIC_LOGO="https://drive.usercontent.google.com/download?id=1njAsb_x6rN-el66QpAFKZ0aXWZZYU6Xl&export=download&confirm=t"
-          curl -fL --retry 3 --retry-delay 2 "$TACTIC_LOGO" -o motion-renderer/public/TACTIC_SPORT_logo.png
+          # Remaining framed goals. Each trim keeps the scoring action inside the 5.17s scene.
+          ffmpeg -hide_banner -loglevel warning -y -ss 5.4 -i /tmp/goal2.mp4 -t 5.2 \
+            -vf "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,fps=30" \
+            -c:v libx264 -preset fast -crf 19 -c:a aac -b:a 160k -ar 48000 -ac 2 -movflags +faststart \
+            motion-renderer/public/v6-goal-2.mp4
 
-          test -s motion-renderer/public/v6-world-bg.mp4
-          test -s motion-renderer/public/v6-goal-window.mp4
-          test -s motion-renderer/public/TACTIC_SPORT_logo.png
-          file motion-renderer/public/TACTIC_SPORT_logo.png
+          ffmpeg -hide_banner -loglevel warning -y -ss 2.2 -i /tmp/goal3.mp4 -t 5.2 \
+            -vf "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,fps=30" \
+            -c:v libx264 -preset fast -crf 19 -c:a aac -b:a 160k -ar 48000 -ac 2 -movflags +faststart \
+            motion-renderer/public/v6-goal-3.mp4
 
-      - name: Validate visual assets
+          ffmpeg -hide_banner -loglevel warning -y -ss 6.0 -i /tmp/goal4.mp4 -t 5.2 \
+            -vf "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,fps=30" \
+            -c:v libx264 -preset fast -crf 19 -c:a aac -b:a 160k -ar 48000 -ac 2 -movflags +faststart \
+            motion-renderer/public/v6-goal-4.mp4
+
+          ffmpeg -hide_banner -loglevel warning -y -ss 2.0 -i /tmp/goal5.mp4 -t 5.2 \
+            -vf "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,fps=30" \
+            -c:v libx264 -preset fast -crf 19 -c:a aac -b:a 160k -ar 48000 -ac 2 -movflags +faststart \
+            motion-renderer/public/v6-goal-5.mp4
+
+          # Compatibility file for payload/inspection.
+          cp motion-renderer/public/v6-goal-window.mp4 motion-renderer/public/v6-goal-1.mp4
+
+          # Real TACTIC SPORT logo from the user's Drive library.
+          dl "1njAsb_x6rN-el66QpAFKZ0aXWZZYU6Xl" motion-renderer/public/TACTIC_SPORT_logo.png
+
+          for f in motion-renderer/public/v6-world-bg.mp4 motion-renderer/public/v6-goal-window.mp4 motion-renderer/public/v6-goal-{2,3,4,5}.mp4 motion-renderer/public/TACTIC_SPORT_logo.png; do
+            test -s "$f"
+          done
+
+      - name: Validate team and competition assets
         shell: bash
         run: |
           set -euo pipefail
@@ -81,7 +123,7 @@ jobs:
           context: ./motion-renderer
           file: ./motion-renderer/Dockerfile
           load: true
-          tags: tactic-v6-broadcast-act-a:latest
+          tags: tactic-v6-full-match:latest
           cache-from: type=gha,scope=tactic-v6-first-act
           cache-to: type=gha,mode=max,scope=tactic-v6-first-act
 
@@ -90,21 +132,21 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p rendered state qa
-          docker run -d --name tactic-v6-broadcast-act-a \
+          docker run -d --name tactic-v6-full-match \
             -p 18080:80 \
             -e PORT=80 \
             -e PUBLIC_URL=http://127.0.0.1:18080 \
             -v "$PWD/rendered:/app/renders" \
             -v "$PWD/state:/app/state" \
-            tactic-v6-broadcast-act-a:latest
+            tactic-v6-full-match:latest
           for i in $(seq 1 60); do
             if curl -fsS http://127.0.0.1:18080/health >/dev/null 2>&1; then exit 0; fi
             sleep 2
           done
-          docker logs tactic-v6-broadcast-act-a || true
+          docker logs tactic-v6-full-match || true
           exit 1
 
-      - name: Render 12 second broadcast act A
+      - name: Render full V6 match film
         shell: bash
         run: |
           set -euo pipefail
@@ -113,7 +155,7 @@ jobs:
           echo "$response" | tee create-job.json
           job_id="$(echo "$response" | jq -er '.jobId')"
           echo "job_id=$job_id" >> "$GITHUB_ENV"
-          for i in $(seq 1 180); do
+          for i in $(seq 1 600); do
             status_json="$(curl -fsS http://127.0.0.1:18080/renders/${job_id})"
             status="$(echo "$status_json" | jq -r '.status')"
             progress="$(echo "$status_json" | jq -r '.progress // 0')"
@@ -124,25 +166,25 @@ jobs:
             fi
             if [ "$status" = failed ]; then
               echo "$status_json" | jq .
-              docker logs tactic-v6-broadcast-act-a || true
+              docker logs tactic-v6-full-match || true
               exit 1
             fi
             sleep 6
           done
           exit 1
 
-      - name: Verify and create QA sheet
+      - name: Verify and create full-film QA sheet
         shell: bash
         run: |
           set -euo pipefail
           file="rendered/${job_id}.mp4"
           ffprobe -v error -show_entries format=duration,size -show_entries stream=codec_type,codec_name,width,height -of json "$file" | tee qa/media-info.json
           ffmpeg -hide_banner -loglevel warning -y -i "$file" \
-            -vf "select='eq(n,12)+eq(n,55)+eq(n,92)+eq(n,145)+eq(n,180)+eq(n,210)+eq(n,275)+eq(n,330)',scale=270:480,tile=4x2" \
-            -vsync vfr -frames:v 1 qa/v6-broadcast-act-a-contact-sheet.jpg
-          test -s qa/v6-broadcast-act-a-contact-sheet.jpg
+            -vf "select='eq(n,18)+eq(n,60)+eq(n,105)+eq(n,170)+eq(n,245)+eq(n,325)+eq(n,425)+eq(n,580)+eq(n,735)+eq(n,890)+eq(n,1015)+eq(n,1115)+eq(n,1220)+eq(n,1325)+eq(n,1440)+eq(n,1575)+eq(n,1710)',scale=216:384,tile=5x4" \
+            -vsync vfr -frames:v 1 qa/v6-full-match-contact-sheet.jpg
+          test -s qa/v6-full-match-contact-sheet.jpg
 
-      - name: Upload broadcast act A to TACTIC Motion storage
+      - name: Upload full V6 film to TACTIC Motion storage
         id: publish
         shell: bash
         run: |
@@ -150,21 +192,21 @@ jobs:
           file="rendered/${job_id}.mp4"
           response="$(curl -fsS --retry 3 --retry-delay 3 --retry-all-errors \
             -X POST -H 'Content-Type: video/mp4' \
-            -H 'x-file-name: tactic-v6-act-a-framed-goal-aston-villa-club-brugge.mp4' \
+            -H 'x-file-name: tactic-v6-full-aston-villa-club-brugge.mp4' \
             -H 'x-game-id: 4828501' \
-            -H 'x-media-type: v6_broadcast_act_a' \
+            -H 'x-media-type: v6_full_match' \
             --data-binary "@${file}" \
             'https://personal-tactic-motion.8kospi.easypanel.host/assets')"
           echo "$response" | tee qa/upload-result.json
           echo "result_url=$(echo "$response" | jq -er '.url')" >> "$GITHUB_OUTPUT"
 
-      - name: Upload QA artifact
+      - name: Upload full QA artifact
         uses: actions/upload-artifact@v4
         with:
-          name: tactic-v6-broadcast-act-a-${{ github.run_id }}
+          name: tactic-v6-full-match-${{ github.run_id }}
           path: |
             rendered/${{ env.job_id }}.mp4
-            qa/v6-broadcast-act-a-contact-sheet.jpg
+            qa/v6-full-match-contact-sheet.jpg
             qa/media-info.json
             qa/upload-result.json
             render-payload.json
