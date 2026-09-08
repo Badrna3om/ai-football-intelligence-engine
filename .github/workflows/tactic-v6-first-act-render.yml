@@ -30,17 +30,27 @@ jobs:
           fi
           ffmpeg -version | head -n 1
 
-      - name: Prepare first goal footage
+      - name: Prepare V6 visual assets
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p motion-renderer/public
+
+          # Remove the opaque near-black plate from the real TACTIC logo.
+          test -s motion-renderer/public/TACTIC_SPORT_logo.png
+          ffmpeg -hide_banner -loglevel warning -y \
+            -i motion-renderer/public/TACTIC_SPORT_logo.png \
+            -vf "format=rgba,colorkey=0x000000:0.22:0.08" \
+            -frames:v 1 motion-renderer/public/TACTIC_SPORT_logo_v6.png
+          test -s motion-renderer/public/TACTIC_SPORT_logo_v6.png
+
+          # Use the real first-goal clip, but crop it to native 9:16 instead of padding it with black bars.
           SOURCE="https://drive.usercontent.google.com/download?id=1di9B2Jo2v6yxvkYhC-rgcgLZDRqrj8-H&export=download&confirm=t"
           curl -fL --retry 3 --retry-delay 2 "$SOURCE" -o /tmp/v6-goal-source.mp4
           test -s /tmp/v6-goal-source.mp4
           ffprobe -v error -show_entries format=duration,size -of json /tmp/v6-goal-source.mp4
           ffmpeg -hide_banner -loglevel warning -y -ss 9 -i /tmp/v6-goal-source.mp4 -t 4.6 \
-            -vf "scale=720:1280:force_original_aspect_ratio=decrease,pad=720:1280:(ow-iw)/2:(oh-ih)/2:black" \
+            -vf "scale=-2:1280,crop=720:1280:(iw-ow)/2:0" \
             -c:v libx264 -preset fast -crf 21 -c:a aac -b:a 128k -ar 48000 -ac 2 -movflags +faststart \
             motion-renderer/public/v6-first-goal.mp4
           test -s motion-renderer/public/v6-first-goal.mp4
@@ -134,7 +144,7 @@ jobs:
           file="rendered/${job_id}.mp4"
           response="$(curl -fsS --retry 3 --retry-delay 3 --retry-all-errors \
             -X POST -H 'Content-Type: video/mp4' \
-            -H 'x-file-name: tactic-v6-first-act-aston-villa-club-brugge.mp4' \
+            -H 'x-file-name: tactic-v6-first-act-pass-b-aston-villa-club-brugge.mp4' \
             -H 'x-game-id: 4828501' \
             -H 'x-media-type: v6_first_act_preview' \
             --data-binary "@${file}" \
@@ -145,7 +155,7 @@ jobs:
       - name: Upload QA artifact
         uses: actions/upload-artifact@v4
         with:
-          name: tactic-v6-first-act-${{ github.run_id }}
+          name: tactic-v6-first-act-pass-b-${{ github.run_id }}
           path: |
             rendered/${{ env.job_id }}.mp4
             qa/v6-first-act-contact-sheet.jpg
