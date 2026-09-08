@@ -30,21 +30,11 @@ jobs:
           fi
           ffmpeg -version | head -n 1
 
-      - name: Prepare V6 visual assets
+      - name: Prepare first goal footage
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p motion-renderer/public
-
-          # Remove the opaque near-black plate from the real TACTIC logo.
-          test -s motion-renderer/public/TACTIC_SPORT_logo.png
-          ffmpeg -hide_banner -loglevel warning -y \
-            -i motion-renderer/public/TACTIC_SPORT_logo.png \
-            -vf "format=rgba,colorkey=0x000000:0.22:0.08" \
-            -frames:v 1 motion-renderer/public/TACTIC_SPORT_logo_v6.png
-          test -s motion-renderer/public/TACTIC_SPORT_logo_v6.png
-
-          # Use the real first-goal clip, but crop it to native 9:16 instead of padding it with black bars.
           SOURCE="https://drive.usercontent.google.com/download?id=1di9B2Jo2v6yxvkYhC-rgcgLZDRqrj8-H&export=download&confirm=t"
           curl -fL --retry 3 --retry-delay 2 "$SOURCE" -o /tmp/v6-goal-source.mp4
           test -s /tmp/v6-goal-source.mp4
