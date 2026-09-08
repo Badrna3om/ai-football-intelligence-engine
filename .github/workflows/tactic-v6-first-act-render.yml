@@ -1,5 +1,5 @@
-name: TACTIC V6 Visual Proof
-run-name: TACTIC V6 Visual Proof ${{ github.run_id }}
+name: TACTIC V6 Act A
+run-name: TACTIC V6 Act A ${{ github.run_id }}
 
 on:
   push:
@@ -39,11 +39,11 @@ jobs:
           curl -fL --retry 3 --retry-delay 2 "$SOURCE" -o /tmp/v6-goal-source.mp4
           test -s /tmp/v6-goal-source.mp4
           ffprobe -v error -show_entries format=duration,size -of json /tmp/v6-goal-source.mp4
-          ffmpeg -hide_banner -loglevel warning -y -ss 9 -i /tmp/v6-goal-source.mp4 -t 3.4 \
+          ffmpeg -hide_banner -loglevel warning -y -ss 5 -i /tmp/v6-goal-source.mp4 -t 10.4 \
             -vf "scale=-2:1280,crop=720:1280:(iw-ow)/2:0" \
-            -c:v libx264 -preset fast -crf 20 -c:a aac -b:a 128k -ar 48000 -ac 2 -movflags +faststart \
-            motion-renderer/public/v6-first-goal.mp4
-          test -s motion-renderer/public/v6-first-goal.mp4
+            -c:v libx264 -preset fast -crf 20 -c:a aac -b:a 160k -ar 48000 -ac 2 -movflags +faststart \
+            motion-renderer/public/v6-act-a.mp4
+          test -s motion-renderer/public/v6-act-a.mp4
 
       - name: Validate visual assets
         shell: bash
@@ -65,7 +65,7 @@ jobs:
           context: ./motion-renderer
           file: ./motion-renderer/Dockerfile
           load: true
-          tags: tactic-v6-visual-proof:latest
+          tags: tactic-v6-act-a:latest
           cache-from: type=gha,scope=tactic-v6-first-act
           cache-to: type=gha,mode=max,scope=tactic-v6-first-act
 
@@ -74,21 +74,21 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p rendered state qa
-          docker run -d --name tactic-v6-visual-proof \
+          docker run -d --name tactic-v6-act-a \
             -p 18080:80 \
             -e PORT=80 \
             -e PUBLIC_URL=http://127.0.0.1:18080 \
             -v "$PWD/rendered:/app/renders" \
             -v "$PWD/state:/app/state" \
-            tactic-v6-visual-proof:latest
+            tactic-v6-act-a:latest
           for i in $(seq 1 60); do
             if curl -fsS http://127.0.0.1:18080/health >/dev/null 2>&1; then exit 0; fi
             sleep 2
           done
-          docker logs tactic-v6-visual-proof || true
+          docker logs tactic-v6-act-a || true
           exit 1
 
-      - name: Render 3 second visual proof
+      - name: Render 10 second act A
         shell: bash
         run: |
           set -euo pipefail
@@ -97,7 +97,7 @@ jobs:
           echo "$response" | tee create-job.json
           job_id="$(echo "$response" | jq -er '.jobId')"
           echo "job_id=$job_id" >> "$GITHUB_ENV"
-          for i in $(seq 1 120); do
+          for i in $(seq 1 180); do
             status_json="$(curl -fsS http://127.0.0.1:18080/renders/${job_id})"
             status="$(echo "$status_json" | jq -r '.status')"
             progress="$(echo "$status_json" | jq -r '.progress // 0')"
@@ -108,25 +108,25 @@ jobs:
             fi
             if [ "$status" = failed ]; then
               echo "$status_json" | jq .
-              docker logs tactic-v6-visual-proof || true
+              docker logs tactic-v6-act-a || true
               exit 1
             fi
-            sleep 5
+            sleep 6
           done
           exit 1
 
-      - name: Verify and create 3-frame QA sheet
+      - name: Verify and create QA sheet
         shell: bash
         run: |
           set -euo pipefail
           file="rendered/${job_id}.mp4"
           ffprobe -v error -show_entries format=duration,size -show_entries stream=codec_type,codec_name,width,height -of json "$file" | tee qa/media-info.json
           ffmpeg -hide_banner -loglevel warning -y -i "$file" \
-            -vf "select='eq(n,12)+eq(n,42)+eq(n,78)',scale=360:640,tile=3x1" \
-            -vsync vfr -frames:v 1 qa/v6-visual-proof-contact-sheet.jpg
-          test -s qa/v6-visual-proof-contact-sheet.jpg
+            -vf "select='eq(n,18)+eq(n,66)+eq(n,126)+eq(n,174)+eq(n,222)+eq(n,276)',scale=270:480,tile=3x2" \
+            -vsync vfr -frames:v 1 qa/v6-act-a-contact-sheet.jpg
+          test -s qa/v6-act-a-contact-sheet.jpg
 
-      - name: Upload visual proof to TACTIC Motion storage
+      - name: Upload act A to TACTIC Motion storage
         id: publish
         shell: bash
         run: |
@@ -134,9 +134,9 @@ jobs:
           file="rendered/${job_id}.mp4"
           response="$(curl -fsS --retry 3 --retry-delay 3 --retry-all-errors \
             -X POST -H 'Content-Type: video/mp4' \
-            -H 'x-file-name: tactic-v6-visual-proof-aston-villa-club-brugge.mp4' \
+            -H 'x-file-name: tactic-v6-act-a-aston-villa-club-brugge.mp4' \
             -H 'x-game-id: 4828501' \
-            -H 'x-media-type: v6_visual_proof' \
+            -H 'x-media-type: v6_act_a' \
             --data-binary "@${file}" \
             'https://personal-tactic-motion.8kospi.easypanel.host/assets')"
           echo "$response" | tee qa/upload-result.json
@@ -145,10 +145,10 @@ jobs:
       - name: Upload QA artifact
         uses: actions/upload-artifact@v4
         with:
-          name: tactic-v6-visual-proof-${{ github.run_id }}
+          name: tactic-v6-act-a-${{ github.run_id }}
           path: |
             rendered/${{ env.job_id }}.mp4
-            qa/v6-visual-proof-contact-sheet.jpg
+            qa/v6-act-a-contact-sheet.jpg
             qa/media-info.json
             qa/upload-result.json
             render-payload.json
