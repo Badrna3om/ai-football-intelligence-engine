@@ -1,5 +1,5 @@
-name: TACTIC V6 Act A
-run-name: TACTIC V6 Act A ${{ github.run_id }}
+name: TACTIC V6 Broadcast Act A
+run-name: TACTIC V6 Broadcast Act A ${{ github.run_id }}
 
 on:
   push:
@@ -30,20 +30,36 @@ jobs:
           fi
           ffmpeg -version | head -n 1
 
-      - name: Prepare real match footage
+      - name: Prepare real match media and TACTIC logo
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p motion-renderer/public
+
           SOURCE="https://drive.usercontent.google.com/download?id=1di9B2Jo2v6yxvkYhC-rgcgLZDRqrj8-H&export=download&confirm=t"
           curl -fL --retry 3 --retry-delay 2 "$SOURCE" -o /tmp/v6-goal-source.mp4
           test -s /tmp/v6-goal-source.mp4
           ffprobe -v error -show_entries format=duration,size -of json /tmp/v6-goal-source.mp4
-          ffmpeg -hide_banner -loglevel warning -y -ss 5 -i /tmp/v6-goal-source.mp4 -t 10.4 \
+
+          # Continuous vertical world used behind intro / matchup / score and blurred behind the goal card.
+          ffmpeg -hide_banner -loglevel warning -y -ss 4.0 -i /tmp/v6-goal-source.mp4 -t 12.3 \
             -vf "scale=-2:1280,crop=720:1280:(iw-ow)/2:0" \
             -c:v libx264 -preset fast -crf 20 -c:a aac -b:a 160k -ar 48000 -ac 2 -movflags +faststart \
-            motion-renderer/public/v6-act-a.mp4
-          test -s motion-renderer/public/v6-act-a.mp4
+            motion-renderer/public/v6-world-bg.mp4
+
+          # The actual goal stays landscape inside the framed 16:9 broadcast window.
+          ffmpeg -hide_banner -loglevel warning -y -ss 8.5 -i /tmp/v6-goal-source.mp4 -t 4.2 \
+            -vf "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2" \
+            -c:v libx264 -preset fast -crf 19 -c:a aac -b:a 160k -ar 48000 -ac 2 -movflags +faststart \
+            motion-renderer/public/v6-goal-window.mp4
+
+          TACTIC_LOGO="https://drive.usercontent.google.com/download?id=1njAsb_x6rN-el66QpAFKZ0aXWZZYU6Xl&export=download&confirm=t"
+          curl -fL --retry 3 --retry-delay 2 "$TACTIC_LOGO" -o motion-renderer/public/TACTIC_SPORT_logo.png
+
+          test -s motion-renderer/public/v6-world-bg.mp4
+          test -s motion-renderer/public/v6-goal-window.mp4
+          test -s motion-renderer/public/TACTIC_SPORT_logo.png
+          file motion-renderer/public/TACTIC_SPORT_logo.png
 
       - name: Validate visual assets
         shell: bash
@@ -65,7 +81,7 @@ jobs:
           context: ./motion-renderer
           file: ./motion-renderer/Dockerfile
           load: true
-          tags: tactic-v6-act-a:latest
+          tags: tactic-v6-broadcast-act-a:latest
           cache-from: type=gha,scope=tactic-v6-first-act
           cache-to: type=gha,mode=max,scope=tactic-v6-first-act
 
@@ -74,21 +90,21 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p rendered state qa
-          docker run -d --name tactic-v6-act-a \
+          docker run -d --name tactic-v6-broadcast-act-a \
             -p 18080:80 \
             -e PORT=80 \
             -e PUBLIC_URL=http://127.0.0.1:18080 \
             -v "$PWD/rendered:/app/renders" \
             -v "$PWD/state:/app/state" \
-            tactic-v6-act-a:latest
+            tactic-v6-broadcast-act-a:latest
           for i in $(seq 1 60); do
             if curl -fsS http://127.0.0.1:18080/health >/dev/null 2>&1; then exit 0; fi
             sleep 2
           done
-          docker logs tactic-v6-act-a || true
+          docker logs tactic-v6-broadcast-act-a || true
           exit 1
 
-      - name: Render 10 second act A
+      - name: Render 12 second broadcast act A
         shell: bash
         run: |
           set -euo pipefail
@@ -108,7 +124,7 @@ jobs:
             fi
             if [ "$status" = failed ]; then
               echo "$status_json" | jq .
-              docker logs tactic-v6-act-a || true
+              docker logs tactic-v6-broadcast-act-a || true
               exit 1
             fi
             sleep 6
@@ -122,11 +138,11 @@ jobs:
           file="rendered/${job_id}.mp4"
           ffprobe -v error -show_entries format=duration,size -show_entries stream=codec_type,codec_name,width,height -of json "$file" | tee qa/media-info.json
           ffmpeg -hide_banner -loglevel warning -y -i "$file" \
-            -vf "select='eq(n,18)+eq(n,66)+eq(n,126)+eq(n,174)+eq(n,222)+eq(n,276)',scale=270:480,tile=3x2" \
-            -vsync vfr -frames:v 1 qa/v6-act-a-contact-sheet.jpg
-          test -s qa/v6-act-a-contact-sheet.jpg
+            -vf "select='eq(n,12)+eq(n,55)+eq(n,92)+eq(n,145)+eq(n,180)+eq(n,210)+eq(n,275)+eq(n,330)',scale=270:480,tile=4x2" \
+            -vsync vfr -frames:v 1 qa/v6-broadcast-act-a-contact-sheet.jpg
+          test -s qa/v6-broadcast-act-a-contact-sheet.jpg
 
-      - name: Upload act A to TACTIC Motion storage
+      - name: Upload broadcast act A to TACTIC Motion storage
         id: publish
         shell: bash
         run: |
@@ -134,9 +150,9 @@ jobs:
           file="rendered/${job_id}.mp4"
           response="$(curl -fsS --retry 3 --retry-delay 3 --retry-all-errors \
             -X POST -H 'Content-Type: video/mp4' \
-            -H 'x-file-name: tactic-v6-act-a-aston-villa-club-brugge.mp4' \
+            -H 'x-file-name: tactic-v6-act-a-framed-goal-aston-villa-club-brugge.mp4' \
             -H 'x-game-id: 4828501' \
-            -H 'x-media-type: v6_act_a' \
+            -H 'x-media-type: v6_broadcast_act_a' \
             --data-binary "@${file}" \
             'https://personal-tactic-motion.8kospi.easypanel.host/assets')"
           echo "$response" | tee qa/upload-result.json
@@ -145,10 +161,10 @@ jobs:
       - name: Upload QA artifact
         uses: actions/upload-artifact@v4
         with:
-          name: tactic-v6-act-a-${{ github.run_id }}
+          name: tactic-v6-broadcast-act-a-${{ github.run_id }}
           path: |
             rendered/${{ env.job_id }}.mp4
-            qa/v6-act-a-contact-sheet.jpg
+            qa/v6-broadcast-act-a-contact-sheet.jpg
             qa/media-info.json
             qa/upload-result.json
             render-payload.json
