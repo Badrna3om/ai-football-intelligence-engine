@@ -1,6 +1,6 @@
 import React from "react";
 import {Composition} from "remotion";
-import {TacticMatch,tacticMatchSchema,defaultMatch,calculateDuration} from "./TacticMatchV6PassB";
+import {TacticMatch,tacticMatchSchema,defaultMatch,calculateDuration} from "./TacticMatchV6Proof";
 
 export const RemotionRoot:React.FC=()=> (
   <Composition
