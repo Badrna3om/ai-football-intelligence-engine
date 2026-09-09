@@ -3,6 +3,7 @@ import {Composition} from "remotion";
 import {tacticMatchSchema,defaultMatch} from "./TacticMatchV6Full";
 import {TacticStatsMotionV3Runtime,STATS_V3_FRAMES} from "./TacticStatsMotionV3Runtime";
 
+// Trigger Stats Motion V3 render after indicator-animation review.
 export const RemotionRoot:React.FC=()=> (
   <Composition
     id="TacticMatch"
