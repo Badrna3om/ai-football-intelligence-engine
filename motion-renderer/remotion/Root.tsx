@@ -1,17 +1,18 @@
 import React from "react";
 import {Composition} from "remotion";
-import {TacticMatch,tacticMatchSchema,defaultMatch,calculateDuration} from "./TacticMatchV6Full";
+import {tacticMatchSchema,defaultMatch} from "./TacticMatchV6Full";
+import {TacticStatsMotionV3,STATS_V3_FRAMES} from "./TacticStatsMotionV3";
 
 export const RemotionRoot:React.FC=()=> (
   <Composition
     id="TacticMatch"
-    component={TacticMatch}
-    durationInFrames={1770}
+    component={TacticStatsMotionV3}
+    durationInFrames={STATS_V3_FRAMES}
     fps={30}
     width={1080}
     height={1920}
     schema={tacticMatchSchema}
     defaultProps={defaultMatch}
-    calculateMetadata={({props})=>({durationInFrames:calculateDuration(props)})}
+    calculateMetadata={()=>({durationInFrames:STATS_V3_FRAMES})}
   />
 );
