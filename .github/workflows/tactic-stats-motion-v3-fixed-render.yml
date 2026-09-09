@@ -1,0 +1,121 @@
+name: TACTIC Stats Motion V3 Fixed
+run-name: TACTIC Stats Motion V3 Fixed ${{ github.run_id }}
+
+on:
+  push:
+    branches:
+      - tactic-v6-first-act
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tactic-stats-motion-v3-fixed
+  cancel-in-progress: true
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare local render assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p motion-renderer/public
+          curl -fL --retry 4 --retry-delay 2 --retry-all-errors \
+            "https://drive.usercontent.google.com/download?id=1njAsb_x6rN-el66QpAFKZ0aXWZZYU6Xl&export=download&confirm=t" \
+            -o motion-renderer/public/TACTIC_SPORT_logo.png
+          curl -fL --retry 4 --retry-delay 2 --retry-all-errors \
+            "https://drive.usercontent.google.com/download?id=19XwXNeGV3JdX2G-_EjLglo8c-QVIvYon&export=download&confirm=t" \
+            -o motion-renderer/public/jackson_cutout.png
+          test -s motion-renderer/public/TACTIC_SPORT_logo.png
+          test -s motion-renderer/public/jackson_cutout.png
+          file motion-renderer/public/TACTIC_SPORT_logo.png
+          file motion-renderer/public/jackson_cutout.png
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build renderer image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./motion-renderer
+          file: ./motion-renderer/Dockerfile
+          load: true
+          tags: tactic-stats-v3-fixed:latest
+          cache-from: type=gha,scope=tactic-stats-v3-fixed
+          cache-to: type=gha,mode=max,scope=tactic-stats-v3-fixed
+
+      - name: Start renderer
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p rendered state qa
+          docker run -d --name tactic-stats-v3-fixed \
+            -p 18080:80 \
+            -e PORT=80 \
+            -e PUBLIC_URL=http://127.0.0.1:18080 \
+            -v "$PWD/rendered:/app/renders" \
+            -v "$PWD/state:/app/state" \
+            tactic-stats-v3-fixed:latest
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:18080/health >/dev/null 2>&1; then exit 0; fi
+            sleep 2
+          done
+          docker logs tactic-stats-v3-fixed || true
+          exit 1
+
+      - name: Render Stats Motion V3 Fixed
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp motion-renderer/examples/test-payload.json render-payload.json
+          response="$(curl -fsS -X POST -H 'Content-Type: application/json' --data-binary @render-payload.json http://127.0.0.1:18080/renders)"
+          echo "$response" | tee create-job.json
+          job_id="$(echo "$response" | jq -er '.jobId')"
+          echo "job_id=$job_id" >> "$GITHUB_ENV"
+          for i in $(seq 1 420); do
+            status_json="$(curl -fsS http://127.0.0.1:18080/renders/${job_id})"
+            status="$(echo "$status_json" | jq -r '.status')"
+            progress="$(echo "$status_json" | jq -r '.progress // 0')"
+            echo "status=$status progress=$progress"
+            if [ "$status" = completed ]; then
+              test -s "rendered/${job_id}.mp4"
+              exit 0
+            fi
+            if [ "$status" = failed ]; then
+              echo "$status_json" | jq .
+              docker logs tactic-stats-v3-fixed || true
+              exit 1
+            fi
+            sleep 5
+          done
+          exit 1
+
+      - name: Verify and create QA sheet
+        shell: bash
+        run: |
+          set -euo pipefail
+          file="rendered/${job_id}.mp4"
+          ffprobe -v error -show_entries format=duration,size -show_entries stream=codec_type,codec_name,width,height -of json "$file" | tee qa/media-info.json
+          ffmpeg -hide_banner -loglevel warning -y -i "$file" \
+            -vf "select='eq(n,60)+eq(n,165)+eq(n,270)+eq(n,375)+eq(n,480)+eq(n,585)',scale=270:480,tile=3x2" \
+            -vsync vfr -frames:v 1 qa/stats-v3-fixed-contact-sheet.jpg
+          test -s qa/stats-v3-fixed-contact-sheet.jpg
+
+      - name: Upload Stats V3 Fixed artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tactic-stats-motion-v3-fixed-${{ github.run_id }}
+          path: |
+            rendered/${{ env.job_id }}.mp4
+            qa/stats-v3-fixed-contact-sheet.jpg
+            qa/media-info.json
+            render-payload.json
+          retention-days: 3
+          if-no-files-found: error
