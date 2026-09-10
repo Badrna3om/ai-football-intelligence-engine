@@ -4,41 +4,41 @@
   "language": "ar",
   "direction": "rtl",
   "fontFamily": "Cairo",
-  "gameId": 4781124,
-  "competition": "UAE Pro League",
-  "round": 4,
-  "homeTeam": "شباب الأهلي",
-  "awayTeam": "الجزيرة",
-  "score": "1 - 3",
+  "gameId": 4788292,
+  "competition": "دوري روشن السعودي",
+  "round": 6,
+  "homeTeam": "النصر",
+  "awayTeam": "أبها",
+  "score": "2 - 1",
   "highlightsVideoUrl": null,
   "goals": [],
   "statsCards": [
-    {"id":"shots","headline":"التسديدات","homeValue":13,"awayValue":17},
-    {"id":"shots_on_target","headline":"على المرمى","homeValue":4,"awayValue":5},
-    {"id":"big_chances","headline":"الفرص الكبيرة","homeValue":0,"awayValue":5},
-    {"id":"xg","headline":"الأهداف المتوقعة xG","homeValue":1.51,"awayValue":1.48},
-    {"id":"possession","headline":"الاستحواذ","homeValue":62,"awayValue":38}
+    {"id":"shots","headline":"التسديدات","homeValue":19,"awayValue":5},
+    {"id":"shots_on_target","headline":"على المرمى","homeValue":6,"awayValue":2},
+    {"id":"big_chances","headline":"الفرص الكبيرة","homeValue":3,"awayValue":0},
+    {"id":"xg","headline":"الأهداف المتوقعة xG","homeValue":1.13,"awayValue":0.26},
+    {"id":"possession","headline":"الاستحواذ","homeValue":67,"awayValue":33}
   ],
   "starPlayer": {
-    "name":"فليسيو ميلسون",
-    "team":"الجزيرة",
-    "rating":8.3,
-    "position":"LW",
+    "name":"كريستيانو رونالدو",
+    "team":"النصر",
+    "rating":8.4,
+    "position":"ST",
     "minutes":90,
     "goals":1,
-    "assists":1,
-    "stats":{"Key Passes":"6","Total Shots":"4","Big Chances Created":"3","Expected Assists":"0.44"},
-    "photoUrl":"https://personal-tactic-motion.8kospi.easypanel.host/assets/18220843-5e68-47da-8648-55efde67cf27.png"
+    "assists":0,
+    "stats":{"Total Shots":"8","Shots On Target":"4"},
+    "photoUrl":"https://media-sdp.spl.com.sa/playerImages/47d9987fd5044e0dba6c6c1df7d6cfa8/3677a75aaa514e43b2840e7fa367c91d/94263b19841944c38cb20892b176c862/home/2a3c905c404b4c7bb51c9d0f367415dc_left.webp"
   },
   "assets": {
-    "homeBadgeUrl":"https://personal-tactic-motion.8kospi.easypanel.host/assets/b4db41a9-2557-4b95-a704-88697904bea0.png",
-    "awayBadgeUrl":"https://personal-tactic-motion.8kospi.easypanel.host/assets/4b8fe312-f9b9-43cd-ad26-e07b0d090d75.png",
-    "competitionLogoUrl":"https://personal-tactic-motion.8kospi.easypanel.host/assets/ffd43961-445b-45af-949c-6e955c9fa11d.png",
+    "homeBadgeUrl":"https://imagecache.365scores.com/image/upload/f_png,c_limit,q_auto:eco,dpr_1/Competitors/7549",
+    "awayBadgeUrl":"https://r2.thesportsdb.com/images/media/team/badge/e00pwe1677530619.png",
+    "competitionLogoUrl":null,
     "tacticLogoUrl":null,
-    "starPlayerPhotoUrl":"https://personal-tactic-motion.8kospi.easypanel.host/assets/18220843-5e68-47da-8648-55efde67cf27.png"
+    "starPlayerPhotoUrl":"https://media-sdp.spl.com.sa/playerImages/47d9987fd5044e0dba6c6c1df7d6cfa8/3677a75aaa514e43b2840e7fa367c91d/94263b19841944c38cb20892b176c862/home/2a3c905c404b4c7bb51c9d0f367415dc_left.webp"
   },
   "design": {
-    "homeColor": "#E32636",
-    "awayColor": "#F2F3F5"
+    "homeColor": "#F7D117",
+    "awayColor": "#D71920"
   }
 }
