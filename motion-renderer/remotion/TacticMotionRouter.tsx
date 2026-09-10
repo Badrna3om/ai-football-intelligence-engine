@@ -10,6 +10,10 @@ import {
   TacticStatsHilalReference,
   calculateHilalStatsDuration,
 } from "./stats-hilal-reference/TacticStatsHilalReference";
+import {
+  TacticStatsHilalStackV2,
+  calculateHilalStackV2Duration,
+} from "./stats-hilal-reference/TacticStatsHilalStackV2";
 
 export const tacticMotionRouterSchema = tacticMatchSchema.extend({
   compositionId: z.string().optional(),
@@ -24,6 +28,9 @@ export const defaultRouterProps: TacticMotionRouterProps = {
 };
 
 export const calculateRouterDuration = (props: TacticMotionRouterProps) => {
+  if (props.compositionId === "TacticStatsHilalStackV2") {
+    return calculateHilalStackV2Duration();
+  }
   if (props.compositionId === "TacticStatsHilalReference") {
     return calculateHilalStatsDuration(props as any);
   }
@@ -31,6 +38,9 @@ export const calculateRouterDuration = (props: TacticMotionRouterProps) => {
 };
 
 export const TacticMotionRouter: React.FC<TacticMotionRouterProps> = (props) => {
+  if (props.compositionId === "TacticStatsHilalStackV2") {
+    return <TacticStatsHilalStackV2 {...(props as any)} />;
+  }
   if (props.compositionId === "TacticStatsHilalReference") {
     return <TacticStatsHilalReference {...(props as any)} />;
   }
