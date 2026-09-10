@@ -18,6 +18,12 @@ import {
   defaultHilalStackV2Props,
   calculateHilalStackV2Duration,
 } from "./stats-hilal-reference/TacticStatsHilalStackV2";
+import {
+  TacticMatchPresentationLayered,
+  tacticMatchPresentationLayeredSchema,
+  defaultMatchPresentationProps,
+  calculateMatchPresentationDuration,
+} from "./match-presentation/TacticMatchPresentationLayered";
 
 export const RemotionRoot:React.FC=()=> (
   <>
@@ -53,6 +59,17 @@ export const RemotionRoot:React.FC=()=> (
       schema={tacticStatsHilalStackV2Schema}
       defaultProps={defaultHilalStackV2Props}
       calculateMetadata={()=>({durationInFrames:calculateHilalStackV2Duration()})}
+    />
+    <Composition
+      id="TacticMatchPresentationLayered"
+      component={TacticMatchPresentationLayered}
+      durationInFrames={230}
+      fps={30}
+      width={1080}
+      height={1920}
+      schema={tacticMatchPresentationLayeredSchema}
+      defaultProps={defaultMatchPresentationProps}
+      calculateMetadata={()=>({durationInFrames:calculateMatchPresentationDuration()})}
     />
   </>
 );
