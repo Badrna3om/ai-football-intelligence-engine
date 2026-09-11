@@ -54,14 +54,10 @@ async function main() {
   app.post("/renders", (req, res) => {
     const body = req.body || {};
 
-    // Production rule: every real match render uses the locked MASTER v1.
-    // Legacy rendering is possible only with the explicit emergency flag legacyMode=true.
-    if (body.legacyMode !== true) {
-      body.compositionId = "TacticMasterV1";
-      body.templateVersion = "TACTIC_MASTER_V1";
-    } else if (!body.compositionId) {
-      body.compositionId = "TacticMatch";
-    }
+    // MASTER V1 is the only production render path.
+    // Legacy compositions remain in source for reference only and are never routed.
+    body.compositionId = "TacticMasterV1";
+    body.templateVersion = "TACTIC_MASTER_V1";
 
     if (!body.gameId || !body.homeTeam || !body.awayTeam) {
       return res.status(422).json({
