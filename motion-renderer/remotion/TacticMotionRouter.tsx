@@ -1,6 +1,10 @@
 import React from "react";
 import {z} from "zod";
 import {
+  TacticMasterV1,
+  calculateMasterV1Duration,
+} from "./master-v1/TacticMasterV1";
+import {
   TacticMatch,
   tacticMatchSchema,
   defaultMatch,
@@ -27,7 +31,10 @@ export const defaultRouterProps: TacticMotionRouterProps = {
   compositionId: "TacticMatch",
 };
 
-export const calculateRouterDuration = (props: TacticMotionRouterProps) => {\n  if (props.compositionId === "TacticMasterV1") {\n    return calculateMasterV1Duration(props as any);\n  }
+export const calculateRouterDuration = (props: TacticMotionRouterProps) => {
+  if (props.compositionId === "TacticMasterV1") {
+    return calculateMasterV1Duration(props as any);
+  }
   if (props.compositionId === "TacticStatsHilalStackV2") {
     return calculateHilalStackV2Duration();
   }
@@ -37,7 +44,10 @@ export const calculateRouterDuration = (props: TacticMotionRouterProps) => {\n  
   return calculateDuration(props as any);
 };
 
-export const TacticMotionRouter: React.FC<TacticMotionRouterProps> = (props) => {\n  if (props.compositionId === "TacticMasterV1") {\n    return <TacticMasterV1 {...(props as any)} />;\n  }
+export const TacticMotionRouter: React.FC<TacticMotionRouterProps> = (props) => {
+  if (props.compositionId === "TacticMasterV1") {
+    return <TacticMasterV1 {...(props as any)} />;
+  }
   if (props.compositionId === "TacticStatsHilalStackV2") {
     return <TacticStatsHilalStackV2 {...(props as any)} />;
   }

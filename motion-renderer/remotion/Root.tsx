@@ -7,6 +7,12 @@ import {
   calculateRouterDuration,
 } from "./TacticMotionRouter";
 import {
+  TacticMasterV1,
+  tacticMasterV1Schema,
+  defaultMasterV1Props,
+  calculateMasterV1Duration,
+} from "./master-v1/TacticMasterV1";
+import {
   TacticStatsHilalReference,
   tacticStatsHilalReferenceSchema,
   defaultHilalStatsProps,
@@ -37,6 +43,17 @@ export const RemotionRoot:React.FC=()=> (
       schema={tacticMotionRouterSchema}
       defaultProps={defaultRouterProps}
       calculateMetadata={({props})=>({durationInFrames:calculateRouterDuration(props)})}
+    />
+    <Composition
+      id="TacticMasterV1"
+      component={TacticMasterV1}
+      durationInFrames={2390}
+      fps={30}
+      width={1080}
+      height={1920}
+      schema={tacticMasterV1Schema}
+      defaultProps={defaultMasterV1Props}
+      calculateMetadata={({props})=>({durationInFrames:calculateMasterV1Duration(props)})}
     />
     <Composition
       id="TacticStatsHilalReference"

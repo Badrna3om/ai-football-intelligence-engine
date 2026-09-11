@@ -80,7 +80,8 @@ const count=(v:number,lf:number,dec=0)=>{const x=interpolate(lf,[8,48],[0,v],{..
 const Stadium:React.FC<{p:StackProps;opacity?:number}>=({p,opacity=1})=>{
   const f=useCurrentFrame(); const left=hc(p), right=ac(p); const sweep=interpolate(f%180,[0,179],[-500,1480]);
   return <AbsoluteFill style={{opacity,background:"#020508",overflow:"hidden"}}>
-    <AbsoluteFill style={{background:`radial-gradient(circle at 16% 28%,${rgba(left,.22)},transparent 31%),radial-gradient(circle at 84% 28%,${rgba(right,.17)},transparent 31%),radial-gradient(circle at 50% 12%,#173142 0%,#08131b 36%,#020508 72%)`}}/>
+    {p.assets?.stadiumImageUrl?<Img src={p.assets.stadiumImageUrl} style={{position:"absolute",width:"100%",height:"100%",objectFit:"cover",filter:"brightness(.42) contrast(1.08)",transform:"scale(1.035)"}}/>:<AbsoluteFill style={{background:"radial-gradient(circle at 50% 12%,#173142 0%,#08131b 36%,#020508 72%)"}}/>}
+    <AbsoluteFill style={{background:`radial-gradient(circle at 16% 28%,${rgba(left,.22)},transparent 31%),radial-gradient(circle at 84% 28%,${rgba(right,.17)},transparent 31%)`}}/>
     <div style={{position:"absolute",left:-210,right:-210,top:105,height:430,borderRadius:"50%",border:"2px solid rgba(255,255,255,.08)",boxShadow:"inset 0 -100px 150px rgba(0,0,0,.74),0 0 120px rgba(47,185,225,.10)"}}/>
     {Array.from({length:20}).map((_,i)=><div key={i} style={{position:"absolute",left:40+i*52,top:300+(i%2)*14,width:8,height:8,borderRadius:"50%",background:"#fff",opacity:.28+.18*Math.sin((f+i*9)/9),boxShadow:`0 0 18px white,0 0 42px ${rgba(i%2?right:left,.45)}`}}/>)}
     <div style={{position:"absolute",left:42,right:42,bottom:-280,height:950,transform:"perspective(960px) rotateX(61deg)",transformOrigin:"center bottom",background:"linear-gradient(180deg,#073c2d,#031b16)",border:"1px solid rgba(255,255,255,.11)",boxShadow:"0 -55px 120px rgba(0,0,0,.5)"}}/>
