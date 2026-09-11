@@ -72,7 +72,6 @@ async function main() {
 
       if (!isUrl(assets.homeBadgeUrl)) missing.push("assets.homeBadgeUrl");
       if (!isUrl(assets.awayBadgeUrl)) missing.push("assets.awayBadgeUrl");
-      if (!isUrl(assets.stadiumImageUrl)) missing.push("assets.stadiumImageUrl");
 
       const requiredStats = ["shots","shots_on_target","big_chances","xg","possession"];
       const statIds = new Set(
