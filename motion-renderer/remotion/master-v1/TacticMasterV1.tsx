@@ -178,12 +178,12 @@ const normalizedEvents=(p:TacticMasterV1Props)=>{
     teamSide:txt(g.teamSide).toLowerCase()==="away"?"away":"home",
     player:g.scorer,
     label:"هدف",
-  })).sort((a:any,b:any)=>num(a.minute)-num(b.minute);
+  })).sort((a:any,b:any)=>num(a.minute)-num(b.minute));
 };
 
 const ResultScene:React.FC<{p:TacticMasterV1Props;duration:number}>=({p,duration})=>{
   const f=useCurrentFrame();
-  const [hs,as]=scoreParts(p.score);
+  const [homeScore,awayScore]=scoreParts(p.score);
   const events=normalizedEvents(p);
   const prog=ease(f,38,duration-28);
   const y0=750,y1=1615;
@@ -197,7 +197,7 @@ const ResultScene:React.FC<{p:TacticMasterV1Props;duration:number}>=({p,duration
     </div>
     <div style={{position:"absolute",top:300,left:70,right:70,height:300,display:"grid",gridTemplateColumns:"1fr 180px 1fr",alignItems:"center",direction:"ltr"}}>
       <div style={{textAlign:"center"}}><Img src={homeBadge(p)} style={{width:190,height:190,objectFit:"contain"}}/><div style={{fontSize:40,fontWeight:950,color:homeColor(p)}}>{p.homeTeam}</div></div>
-      <div style={{fontSize:92,fontWeight:950,textAlign:"center"}}>{hs} <span style={{fontSize:48,color:"rgba(255,255,255,.55)"}}>–</span> {as}</div>
+      <div style={{fontSize:92,fontWeight:950,textAlign:"center"}}>{homeScore} <span style={{fontSize:48,color:"rgba(255,255,255,.55)"}}>–</span> {awayScore}</div>
       <div style={{textAlign:"center"}}><Img src={awayBadge(p)} style={{width:190,height:190,objectFit:"contain"}}/><div style={{fontSize:40,fontWeight:950,color:awayColor(p)}}>{p.awayTeam}</div></div>
     </div>
     <div style={{position:"absolute",left:48,right:48,top:630,bottom:105,borderRadius:30,background:"rgba(2,9,14,.79)",border:"1px solid rgba(235,242,246,.45)",boxShadow:"0 24px 70px rgba(0,0,0,.38)"}}>
