@@ -53,6 +53,14 @@ async function main() {
 
   app.post("/renders", (req, res) => {
     const body = req.body || {};
+
+    // Production default: all real match renders use the locked MASTER v1.
+    // Legacy rendering is only allowed when the caller explicitly asks for TacticMatch.
+    if (!body.compositionId) body.compositionId = "TacticMasterV1";
+    if (body.compositionId === "TacticMasterV1" && !body.templateVersion) {
+      body.templateVersion = "TACTIC_MASTER_V1";
+    }
+
     if (!body.gameId || !body.homeTeam || !body.awayTeam) {
       return res.status(422).json({
         message: "gameId, homeTeam and awayTeam are required",

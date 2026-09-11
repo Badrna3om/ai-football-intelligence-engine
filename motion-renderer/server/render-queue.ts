@@ -355,9 +355,12 @@ export const makeRenderQueue = ({
       j.localizedMedia = localized.localized;
       persistNow();
 
+      const renderPayload = isRecord(j.data) ? j.data : {};
+      const compositionId = String(renderPayload.compositionId || "TacticMasterV1");
+
       const composition = await selectComposition({
         serveUrl,
-        id:"TacticMatch",
+        id:compositionId,
         inputProps:j.data as Record<string,unknown>,
       });
 
