@@ -27,7 +27,7 @@ const homeColor=(p:TacticMasterV1Props)=>p.design?.homeColor||"#F7D117";
 const awayColor=(p:TacticMasterV1Props)=>p.design?.awayColor||"#2D9CFF";
 const homeBadge=(p:TacticMasterV1Props)=>p.assets?.homeBadgeUrl||p.match?.home?.badgeUrl||transparentPixel;
 const awayBadge=(p:TacticMasterV1Props)=>p.assets?.awayBadgeUrl||p.match?.away?.badgeUrl||transparentPixel;
-const tacticLogo=(p:TacticMasterV1Props)=>p.assets?.tacticLogoUrl||staticFile("TACTIC_SPORT_logo.png");
+const tacticLogo=(_p:TacticMasterV1Props)=>staticFile("assets/brand/TACTIC_SPORT_MASTER.png");
 const stadium=(p:TacticMasterV1Props)=>p.assets?.stadiumImageUrl||p.match?.stadium?.imageUrl||null;
 const competitionLogo=(p:TacticMasterV1Props)=>p.assets?.competitionLogoUrl||null;
 

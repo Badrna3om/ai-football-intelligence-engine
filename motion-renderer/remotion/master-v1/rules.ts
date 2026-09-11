@@ -28,6 +28,7 @@ export const MASTER_V1_STAT_ORDER = [
 ] as const;
 
 export const MASTER_V1_RULES = [
+  "TACTIC SPORT brand logo is fixed to public/assets/brand/TACTIC_SPORT_MASTER.png and can never be overridden by a match payload.",
   "V23 is the immutable visual master.",
   "No baked team colors: all team accents come from design.homeColor and design.awayColor.",
   "The stadium is the neutral base layer; team tints remain translucent.",

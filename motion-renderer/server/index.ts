@@ -59,6 +59,49 @@ async function main() {
       });
     }
 
+    if (body.compositionId === "TacticMasterV1" && body.githubActionsTest !== true) {
+      const assets = body.assets || {};
+      const missing:string[] = [];
+      const isUrl = (v:unknown) => /^https?:\/\//i.test(String(v || "").trim());
+
+      if (!isUrl(assets.homeBadgeUrl)) missing.push("assets.homeBadgeUrl");
+      if (!isUrl(assets.awayBadgeUrl)) missing.push("assets.awayBadgeUrl");
+      if (!isUrl(assets.stadiumImageUrl)) missing.push("assets.stadiumImageUrl");
+
+      const requiredStats = ["shots","shots_on_target","big_chances","xg","possession"];
+      const statIds = new Set(
+        Array.isArray(body.statsCards) ? body.statsCards.map((x:any)=>String(x?.id || "")) : []
+      );
+      for (const id of requiredStats) {
+        if (!statIds.has(id)) missing.push(`statsCards.${id}`);
+      }
+
+      const goals = Array.isArray(body.goals) ? body.goals : [];
+      if (goals.length === 0) {
+        missing.push("goals");
+      } else if (!isUrl(body.highlightsVideoUrl)) {
+        goals.forEach((goal:any,index:number)=>{
+          if (!isUrl(goal?.videoUrl)) missing.push(`goals[${index}].videoUrl`);
+        });
+      }
+
+      if (body.starPlayer) {
+        const starPhoto =
+          body.starPlayer.photoUrl ||
+          body.starPlayer.imageUrl ||
+          body.starPlayer.playerImageUrl ||
+          assets.starPlayerPhotoUrl;
+        if (!isUrl(starPhoto)) missing.push("starPlayer.photoUrl");
+      }
+
+      if (missing.length) {
+        return res.status(422).json({
+          message: "TACTIC_MASTER_V1 production payload is incomplete",
+          missing,
+        });
+      }
+    }
+
     return res.json({jobId: q.createJob(body)});
   });
 
