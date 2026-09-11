@@ -37,7 +37,7 @@ export const tacticStatsHilalStackV2Schema = z.object({
     awayBadgeUrl:z.string().nullable().optional(),
     competitionLogoUrl:z.string().nullable().optional(),
     tacticLogoUrl:z.string().nullable().optional(),
-    starPlayerPhotoUrl:z.string().nullable().optional(),
+    starPlayerPhotoUrl:z.string().nullable().optional(),\n    stadiumImageUrl:z.string().nullable().optional(),
   }).optional(),
   starPlayer: z.any().optional(),
 }).passthrough();

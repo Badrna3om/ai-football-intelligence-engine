@@ -303,7 +303,7 @@ jobs:
             --arg repository "$GITHUB_REPOSITORY" \
             --arg musicVariant "${music_variant:-unknown}" \
             --arg musicBpm "${music_bpm:-unknown}" \
-            '{ok:true,renderer:"github-actions",template:"TACTIC_V7_0_DYNAMIC",jobId:$jobId,gameId:($gameId|tonumber),resultUrl:(if $resultUrl=="" then null else $resultUrl end),githubRunId:($runId|tonumber),repository:$repository,musicVariant:$musicVariant,musicBpm:$musicBpm}' | tee rendered/result.json
+            '{ok:true,renderer:"github-actions",template:"TACTIC_MASTER_V1",jobId:$jobId,gameId:($gameId|tonumber),resultUrl:(if $resultUrl=="" then null else $resultUrl end),githubRunId:($runId|tonumber),repository:$repository,musicVariant:$musicVariant,musicBpm:$musicBpm}' | tee rendered/result.json
 
       - name: Upload rendered video artifact
         if: ${{ success() }}

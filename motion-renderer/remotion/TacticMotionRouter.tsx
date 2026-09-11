@@ -27,7 +27,7 @@ export const defaultRouterProps: TacticMotionRouterProps = {
   compositionId: "TacticMatch",
 };
 
-export const calculateRouterDuration = (props: TacticMotionRouterProps) => {
+export const calculateRouterDuration = (props: TacticMotionRouterProps) => {\n  if (props.compositionId === "TacticMasterV1") {\n    return calculateMasterV1Duration(props as any);\n  }
   if (props.compositionId === "TacticStatsHilalStackV2") {
     return calculateHilalStackV2Duration();
   }
@@ -37,7 +37,7 @@ export const calculateRouterDuration = (props: TacticMotionRouterProps) => {
   return calculateDuration(props as any);
 };
 
-export const TacticMotionRouter: React.FC<TacticMotionRouterProps> = (props) => {
+export const TacticMotionRouter: React.FC<TacticMotionRouterProps> = (props) => {\n  if (props.compositionId === "TacticMasterV1") {\n    return <TacticMasterV1 {...(props as any)} />;\n  }
   if (props.compositionId === "TacticStatsHilalStackV2") {
     return <TacticStatsHilalStackV2 {...(props as any)} />;
   }
