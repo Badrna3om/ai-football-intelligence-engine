@@ -22,7 +22,7 @@ on:
         required: false
         type: string
       upload_result_to_motion:
-        description: "Upload completed MP4 back to the TACTIC Motion server"
+        description: "Upload completed MP4 to Cloudflare R2"
         required: true
         type: boolean
         default: true
@@ -264,28 +264,34 @@ jobs:
           jq -e '[.streams[] | select(.codec_type == "video")][0] | .width == 1080 and .height == 1920' final-stream-info.json >/dev/null
           jq -e '[.streams[] | select(.codec_type == "audio")][0] | (.sample_rate | tonumber) == 48000 and .channels == 2' final-stream-info.json >/dev/null
 
-      - name: Upload final MP4 to TACTIC Motion storage
+      - name: Upload final MP4 to Cloudflare R2
         id: publish
         if: ${{ success() && (github.event_name == 'repository_dispatch' || inputs.upload_result_to_motion) }}
         shell: bash
         env:
-          MANUAL_UPLOAD_BASE: "https://personal-tactic-motion.8kospi.easypanel.host"
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_PUBLIC_URL: ${{ secrets.R2_PUBLIC_URL }}
         run: |
           set -euo pipefail
-          if [ "${GITHUB_EVENT_NAME}" = "repository_dispatch" ]; then
-            upload_base="$(jq -r '.client_payload.result_upload_base_url // empty' "$GITHUB_EVENT_PATH")"
-            request_id="$(jq -r '.client_payload.request_id // empty' "$GITHUB_EVENT_PATH")"
-          else
-            upload_base="$MANUAL_UPLOAD_BASE"
-            request_id=""
-          fi
-          if [ -z "$upload_base" ]; then exit 0; fi
+          test -n "${AWS_ACCESS_KEY_ID:-}"
+          test -n "${AWS_SECRET_ACCESS_KEY:-}"
+          test -n "${R2_ENDPOINT:-}"
+          test -n "${R2_BUCKET:-}"
+          test -n "${R2_PUBLIC_URL:-}"
           file="rendered/${job_id}.mp4"
-          curl_args=(-fsS --retry 3 --retry-delay 3 --retry-all-errors -X POST -H "Content-Type: video/mp4" -H "x-file-name: tactic-render-${game_id}.mp4" -H "x-game-id: ${game_id}" -H "x-media-type: rendered_motion" -H "x-music-variant: ${music_variant:-unknown}")
-          if [ -n "$request_id" ]; then curl_args+=( -H "x-request-id: ${request_id}" ); fi
-          response="$(curl "${curl_args[@]}" --data-binary "@${file}" "${upload_base%/}/assets")"
-          printf '%s\n' "$response" | tee uploaded-result.json
-          result_url="$(printf '%s' "$response" | jq -er '.url')"
+          object_key="game-${game_id}-final-motion.mp4"
+          aws s3 cp "$file" "s3://${R2_BUCKET}/${object_key}" \
+            --endpoint-url "$R2_ENDPOINT" \
+            --content-type "video/mp4" \
+            --cache-control "public,max-age=31536000,immutable" \
+            --only-show-errors
+          result_url="${R2_PUBLIC_URL%/}/${object_key}"
+          curl -fLsS --retry 5 --retry-delay 2 --range 0-0 -o /dev/null "$result_url"
+          printf '{"ok":true,"storage":"cloudflare-r2","bucket":"%s","objectKey":"%s","url":"%s"}\n' "$R2_BUCKET" "$object_key" "$result_url" | tee uploaded-result.json
           echo "result_url=${result_url}" >> "$GITHUB_OUTPUT"
 
       - name: Build result manifest
@@ -303,7 +309,7 @@ jobs:
             --arg repository "$GITHUB_REPOSITORY" \
             --arg musicVariant "${music_variant:-unknown}" \
             --arg musicBpm "${music_bpm:-unknown}" \
-            '{ok:true,renderer:"github-actions",template:"TACTIC_MASTER_V1",jobId:$jobId,gameId:($gameId|tonumber),resultUrl:(if $resultUrl=="" then null else $resultUrl end),githubRunId:($runId|tonumber),repository:$repository,musicVariant:$musicVariant,musicBpm:$musicBpm}' | tee rendered/result.json
+            '{ok:true,renderer:"github-actions",storage:"cloudflare-r2",template:"TACTIC_MASTER_V1",jobId:$jobId,gameId:($gameId|tonumber),resultUrl:(if $resultUrl=="" then null else $resultUrl end),githubRunId:($runId|tonumber),repository:$repository,musicVariant:$musicVariant,musicBpm:$musicBpm}' | tee rendered/result.json
 
       - name: Upload rendered video artifact
         if: ${{ success() }}
