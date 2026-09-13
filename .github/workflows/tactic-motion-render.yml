@@ -47,6 +47,28 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Sync locked TACTIC MASTER reference
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fLsS --retry 4 --retry-delay 2 \
+            https://personal-tactic-motion.8kospi.easypanel.host/assets/TACTIC_MASTER_V1_LOCKED.tsx \
+            -o motion-renderer/remotion/master-v1/TacticMasterV1.tsx
+          curl -fLsS --retry 4 --retry-delay 2 \
+            https://personal-tactic-motion.8kospi.easypanel.host/assets/MATCH_PRESENTATION_V1_LOCKED.tsx \
+            -o motion-renderer/remotion/master-v1/MatchPresentationV1.tsx
+          echo "b03dc54c9cef03cba32010a8a8fcea2ebd3fa65f5ce05e075ccdef7cb64f6586  motion-renderer/remotion/master-v1/TacticMasterV1.tsx" | sha256sum -c -
+          echo "d07e47751299669dd353d734fe60b2fa6646bd22423053c3b86234533e7e427c  motion-renderer/remotion/master-v1/MatchPresentationV1.tsx" | sha256sum -c -
+          node - <<'NODE'
+          const fs=require('fs');
+          const file='motion-renderer/package.json';
+          const p=JSON.parse(fs.readFileSync(file,'utf8'));
+          p.dependencies=p.dependencies||{};
+          p.dependencies['@dawod/thmanyah-font-web']='^1.2.0';
+          fs.writeFileSync(file,JSON.stringify(p,null,2)+'\n');
+          NODE
+          echo "Locked MASTER reference synced."
+
       - name: Prepare render payload
         shell: bash
         env:
@@ -176,80 +198,15 @@ jobs:
             sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ffmpeg
           fi
 
-      - name: Create v7 stadium pulse music and master audio
+      - name: Preserve locked MASTER audio
         shell: bash
         run: |
           set -euo pipefail
-          input="rendered/${job_id}.mp4"
-          tmp="rendered/${job_id}.master.mp4"
-          test -s "$input"
-          duration="$(ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 "$input")"
-          export TACTIC_AUDIO_DURATION="$duration"
-          python3 - <<'PY'
-          import math, os, wave
-          from array import array
-          duration=max(1.0,float(os.environ['TACTIC_AUDIO_DURATION']))
-          run_id=int(os.environ.get('GITHUB_RUN_ID','1'))
-          variant=run_id%6
-          bpms=[126,128,130,132,134,136]
-          roots=[48.999,55.0,58.27,61.74,65.41,73.42]
-          progressions=[[0,3,7,5],[0,5,7,3],[0,7,3,5],[0,5,8,7],[0,3,8,5],[0,7,5,8]]
-          bpm=bpms[variant];root=roots[variant];prog=progressions[variant]
-          beat=60.0/bpm; bar=beat*4; sr=48000; total=int(duration*sr); out=array('h')
-          def envexp(x,k): return math.exp(-k*x)
-          for i in range(total):
-            t=i/sr; bp=t%beat; q=t%(beat/4); bi=int(t/beat); bari=int(t/bar)
-            base=root*(2**(prog[bari%4]/12)); fade=min(1,t/1.4)*min(1,max(0,duration-t)/1.8)
-            kick=0
-            if bp<.18:
-              e=envexp(bp,22); freq=58-20*min(1,bp/.18); kick=.20*e*math.sin(2*math.pi*freq*t)
-            tom=0
-            if bi%4 in (1,3) and bp<.20:
-              tom=.075*envexp(bp,15)*math.sin(2*math.pi*(92 if bi%4==1 else 116)*t)
-            bass=.12*min(1,bp/.025)*envexp(bp,3.4)*math.sin(2*math.pi*base*t)
-            stab_phase=t%(beat*2)
-            stab=0
-            if stab_phase<.30:
-              e=envexp(stab_phase,7)
-              stab=.040*e*(math.sin(2*math.pi*base*4*t)+.55*math.sin(2*math.pi*base*5.04*t))
-            arp_e=min(1,q/.012)*envexp(q,12)
-            arp_step=[0,7,12,10][(bi*4+int((t%beat)/(beat/4)))%4]
-            arp=.034*arp_e*math.sin(2*math.pi*base*4*(2**(arp_step/12))*t)
-            pulse=.018*math.sin(2*math.pi*(base*2)*t)+.012*math.sin(2*math.pi*(base*3.01)*t)
-            lift=.86+.14*math.sin(2*math.pi*t/(bar*2))
-            left=(kick+tom+bass+stab+arp+pulse)*fade*lift
-            right=(kick+tom+bass+stab+arp*.96+pulse*.9)*fade*lift
-            left=max(-.84,min(.84,left));right=max(-.84,min(.84,right))
-            out.append(int(left*32767));out.append(int(right*32767))
-          with wave.open('sports-bed.wav','wb') as w:
-            w.setnchannels(2);w.setsampwidth(2);w.setframerate(sr);w.writeframes(out.tobytes())
-          with open('sports-music.env','w',encoding='utf-8') as e:
-            e.write(f'MUSIC_VARIANT=stadium-pulse-{variant+1}\nMUSIC_BPM={bpm}\n')
-          print(f'v7 stadium pulse variant={variant+1} bpm={bpm} duration={duration:.2f}s')
-          PY
-          source sports-music.env
-          echo "music_variant=${MUSIC_VARIANT}" >> "$GITHUB_ENV"
-          echo "music_bpm=${MUSIC_BPM}" >> "$GITHUB_ENV"
-          has_audio="$(ffprobe -v error -select_streams a:0 -show_entries stream=index -of default=nw=1:nk=1 "$input" 2>/dev/null || true)"
-          if [ -n "$has_audio" ]; then
-            ffmpeg -hide_banner -loglevel warning -y \
-              -i "$input" -i sports-bed.wav \
-              -filter_complex "[1:a]aformat=sample_rates=48000:channel_layouts=stereo,volume=0.18[music];[music][0:a]sidechaincompress=threshold=0.022:ratio=6:attack=28:release=720[ducked];[ducked][0:a]amix=inputs=2:duration=first:weights='0.76 1.0':normalize=0,alimiter=limit=0.93[aout]" \
-              -map 0:v:0 -map "[aout]" -c:v copy -c:a aac -b:a 192k -ar 48000 -ac 2 -movflags +faststart -shortest "$tmp"
-          else
-            ffmpeg -hide_banner -loglevel warning -y \
-              -i "$input" -i sports-bed.wav \
-              -filter_complex "[1:a]aformat=sample_rates=48000:channel_layouts=stereo,volume=0.22,alimiter=limit=0.91[aout]" \
-              -map 0:v:0 -map "[aout]" -c:v copy -c:a aac -b:a 192k -ar 48000 -ac 2 -movflags +faststart -shortest "$tmp"
-          fi
-          test -s "$tmp"
-          before="$duration"; after="$(ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 "$tmp")"
-          python3 - "$before" "$after" <<'PY'
-          import sys
-          a,b=map(float,sys.argv[1:3])
-          if a<1 or b<1 or abs(a-b)>1: raise SystemExit(f'Invalid duration before={a} after={b}')
-          PY
-          mv "$tmp" "$input"
+          file="rendered/${job_id}.mp4"
+          test -s "$file"
+          test -n "$(ffprobe -v error -select_streams a:0 -show_entries stream=index -of default=nw=1:nk=1 "$file" 2>/dev/null || true)"
+          echo "music_variant=locked-master-pool" >> "$GITHUB_ENV"
+          echo "music_bpm=source-track" >> "$GITHUB_ENV"
 
       - name: Verify final MP4
         shell: bash
