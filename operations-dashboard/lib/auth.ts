@@ -1,4 +1,3 @@
-import "server-only";
 import {cookies} from "next/headers";
 import {OPS_COOKIE,tokenForPassword} from "./auth-core";
 
