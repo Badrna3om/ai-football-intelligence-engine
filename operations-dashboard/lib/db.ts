@@ -217,6 +217,31 @@ export async function getStories(limit=80){
   });
 }
 
+export async function getStoriesPage(page=1,pageSize=24,status?:string){
+  const params:Record<string,string>={
+    select:"id,headline,angle,competition_name,game_id,story_scope,primary_entity_name,primary_entity_type,secondary_entity_name,final_score,status,approval_status,expires_at,proposed_at,created_at",
+    order:"id.desc",
+    limit:String(pageSize),
+    offset:String((Math.max(1,page)-1)*pageSize)
+  };
+  if(status&&status!=="all"){
+    if(status==="pending") params.approval_status="eq.pending";
+    else params.approval_status="eq."+status;
+  }
+  const result=await rest<StoryRow[]>("beskot_story_pool",params);
+  return {...result,page,pageSize};
+}
+
+export async function getContentJobsByIds(ids:number[]){
+  const unique=[...new Set(ids.filter(Boolean))];
+  if(unique.length===0) return {data:[] as ContentJobRow[],count:0};
+  return rest<ContentJobRow[]>("beskot_content_jobs",{
+    select:"id,job_key,game_id,competition_name,scope_type,content_type,template_key,status,priority,attempts,max_attempts,error_message,content_payload,created_at,updated_at,rendered_at,published_at",
+    id:"in.("+unique.join(",")+")",
+    limit:String(unique.length)
+  });
+}
+
 export async function getStoriesByGame(gameId:number){
   return rest<StoryRow[]>("beskot_story_pool",{
     select:"id,headline,angle,competition_name,game_id,story_scope,primary_entity_name,primary_entity_type,secondary_entity_name,final_score,status,approval_status,expires_at,proposed_at,created_at",
