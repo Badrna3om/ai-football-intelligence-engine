@@ -179,7 +179,7 @@ export async function getMatchByGame(gameId:number){
 
 export async function getContentJobs(limit=80){
   return rest<ContentJobRow[]>("beskot_content_jobs",{
-    select:"id,job_key,game_id,competition_name,scope_type,content_type,template_key,status,priority,attempts,max_attempts,error_message,content_payload,created_at,updated_at,rendered_at,published_at",
+    select:"id,job_key,game_id,competition_name,round_num,round_name,scope_type,content_type,template_key,status,priority,attempts,max_attempts,error_message,content_payload,created_at,updated_at,rendered_at,published_at",
     order:"id.desc",
     limit:String(limit)
   });
@@ -189,7 +189,7 @@ export async function getContentJobsPage(input:ContentPageInput={}){
   const page=Math.max(1,Number(input.page||1));
   const pageSize=Math.min(50,Math.max(10,Number(input.pageSize||25)));
   const params:Record<string,string>={
-    select:"id,job_key,game_id,competition_name,scope_type,content_type,template_key,status,priority,attempts,max_attempts,error_message,content_payload,created_at,updated_at,rendered_at,published_at",
+    select:"id,job_key,game_id,competition_name,round_num,round_name,scope_type,content_type,template_key,status,priority,attempts,max_attempts,error_message,content_payload,created_at,updated_at,rendered_at,published_at",
     order:"id.desc",
     limit:String(pageSize),
     offset:String((page-1)*pageSize)
@@ -201,7 +201,7 @@ export async function getContentJobsPage(input:ContentPageInput={}){
 
 export async function getContentJobsByGame(gameId:number){
   return rest<ContentJobRow[]>("beskot_content_jobs",{
-    select:"id,job_key,game_id,competition_name,scope_type,content_type,template_key,status,priority,attempts,max_attempts,error_message,content_payload,created_at,updated_at,rendered_at,published_at",
+    select:"id,job_key,game_id,competition_name,round_num,round_name,scope_type,content_type,template_key,status,priority,attempts,max_attempts,error_message,content_payload,created_at,updated_at,rendered_at,published_at",
     game_id:"eq."+gameId,
     order:"id.desc",
     limit:"50"
@@ -235,7 +235,7 @@ export async function getContentJobsByIds(ids:number[]){
   const unique=[...new Set(ids.filter(Boolean))];
   if(unique.length===0) return {data:[] as ContentJobRow[],count:0};
   return rest<ContentJobRow[]>("beskot_content_jobs",{
-    select:"id,job_key,game_id,competition_name,scope_type,content_type,template_key,status,priority,attempts,max_attempts,error_message,content_payload,created_at,updated_at,rendered_at,published_at",
+    select:"id,job_key,game_id,competition_name,round_num,round_name,scope_type,content_type,template_key,status,priority,attempts,max_attempts,error_message,content_payload,created_at,updated_at,rendered_at,published_at",
     id:"in.("+unique.join(",")+")",
     limit:String(unique.length)
   });
