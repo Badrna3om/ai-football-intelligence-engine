@@ -1,4 +1,3 @@
-import "server-only";
 import type {ContentJobRow,MatchRow,MonitorRow,PublishRow,StoryRow} from "./types";
 
 const url=process.env.SUPABASE_URL||"https://bfivqrqsojwmeeuptjxw.supabase.co";
