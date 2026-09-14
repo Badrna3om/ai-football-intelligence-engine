@@ -144,7 +144,7 @@ export async function getCompetitionOptions(){
 
 export async function getMonitors(limit=60){
   return rest<MonitorRow[]>("beskot_match_monitor_queue",{
-    select:"id,game_id,competition_name,home_team_name,away_team_name,next_action,monitor_state,next_check_at,lineup_status,halftime_status,final_status,final_refresh_status,consecutive_errors,last_error,monitor_enabled,is_featured,importance_score,updated_at",
+    select:"id,game_id,competition_name,home_team_name,away_team_name,next_action,monitor_state,next_check_at,lineup_status,halftime_status,final_status,final_refresh_status,consecutive_errors,last_error,monitor_enabled,is_featured,importance_score,manual_featured,updated_at",
     order:"updated_at.desc",
     limit:String(limit)
   });
@@ -154,7 +154,7 @@ export async function getMonitorsByGames(gameIds:number[]){
   const ids=[...new Set(gameIds.filter(Boolean))];
   if(ids.length===0) return {data:[] as MonitorRow[],count:0};
   return rest<MonitorRow[]>("beskot_match_monitor_queue",{
-    select:"id,game_id,competition_name,home_team_name,away_team_name,next_action,monitor_state,next_check_at,lineup_status,halftime_status,final_status,final_refresh_status,consecutive_errors,last_error,monitor_enabled,is_featured,importance_score,updated_at",
+    select:"id,game_id,competition_name,home_team_name,away_team_name,next_action,monitor_state,next_check_at,lineup_status,halftime_status,final_status,final_refresh_status,consecutive_errors,last_error,monitor_enabled,is_featured,importance_score,manual_featured,updated_at",
     game_id:"in.("+ids.join(",")+")",
     limit:String(ids.length)
   });
@@ -162,7 +162,7 @@ export async function getMonitorsByGames(gameIds:number[]){
 
 export async function getMonitorByGame(gameId:number){
   const r=await rest<MonitorRow[]>("beskot_match_monitor_queue",{
-    select:"id,game_id,competition_name,home_team_name,away_team_name,next_action,monitor_state,next_check_at,lineup_status,halftime_status,final_status,final_refresh_status,consecutive_errors,last_error,monitor_enabled,is_featured,importance_score,updated_at",
+    select:"id,game_id,competition_name,home_team_name,away_team_name,next_action,monitor_state,next_check_at,lineup_status,halftime_status,final_status,final_refresh_status,consecutive_errors,last_error,monitor_enabled,is_featured,importance_score,manual_featured,updated_at",
     game_id:"eq."+gameId,
     limit:"1"
   });
