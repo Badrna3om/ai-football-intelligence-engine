@@ -61,7 +61,7 @@ export default async function MatchDetail({params}:{params:Promise<{gameId:strin
           <td>{j.attempts??0}/{j.max_attempts??0}</td>
           <td className="error-cell">{truncate(j.error_message,70)}</td>
           <td>{fmtDate(j.updated_at)}</td>
-          <td>{actionsAvailable&&["failed","rendered","ready"].includes(j.status||"")?<form action={contentRequeueAction}><input type="hidden" name="id" value={j.id}/><button className="mini-button" type="submit">{j.status==="rendered"?"Rerender":"Retry"}</button></form>:"—"}</td>
+          <td>{actionsAvailable&&["failed","rendered"].includes(j.status||"")?<form action={contentRequeueAction}><input type="hidden" name="id" value={j.id}/><button className="mini-button" type="submit">{j.status==="rendered"?"Rerender":"Retry"}</button></form>:"—"}</td>
         </tr>)}</tbody>
       </table></div>
     </Panel>
