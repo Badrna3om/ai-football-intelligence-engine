@@ -1,3 +1,25 @@
-import Link from "next/link";import type {ReactNode} from "react";import {AutoRefresh} from "./auto-refresh";
+import Link from "next/link";
+import {Suspense,type ReactNode} from "react";
+import {AutoRefresh} from "./auto-refresh";
+
 const nav=[["الرئيسية","/","◈"],["المباريات","/matches","◉"],["المحتوى","/content","▣"],["Story Miner","/stories","✦"],["صحة النظام","/health","◇"]];
-export function Shell({children}:{children:ReactNode}){return <div className="app-shell"><aside className="sidebar"><div className="brand"><div className="brand-mark">T</div><div><strong>TACTIC SPORT</strong><small>Operations Center</small></div></div><nav>{nav.map(([label,href,icon])=><Link key={href} href={href}><span>{icon}</span>{label}</Link>)}</nav><div className="sidebar-foot"><span className="dot online"/><div><strong>Production</strong><small>Asia/Dubai</small></div></div></aside><main className="main"><header className="topbar"><div><span className="eyebrow">TACTIC / BESKOT</span><h1>مركز العمليات</h1></div><div className="top-actions"><AutoRefresh/><div className="live-chip"><span className="dot online"/>Read-only V1.1</div></div></header>{children}</main></div>;}
+
+export function Shell({children}:{children:ReactNode}){
+  return <div className="app-shell">
+    <aside className="sidebar">
+      <div className="brand"><div className="brand-mark">T</div><div><strong>TACTIC SPORT</strong><small>Operations Center</small></div></div>
+      <nav>{nav.map(([label,href,icon])=><Link key={href} href={href}><span>{icon}</span>{label}</Link>)}</nav>
+      <div className="sidebar-foot"><span className="dot online"/><div><strong>Production</strong><small>Asia/Dubai</small></div></div>
+    </aside>
+    <main className="main">
+      <header className="topbar">
+        <div><span className="eyebrow">TACTIC / BESKOT</span><h1>مركز العمليات</h1></div>
+        <div className="top-actions">
+          <Suspense fallback={<div className="live-chip"><span className="dot online"/>Auto</div>}><AutoRefresh/></Suspense>
+          <div className="live-chip"><span className="dot online"/>Read-only V1.1</div>
+        </div>
+      </header>
+      {children}
+    </main>
+  </div>;
+}
