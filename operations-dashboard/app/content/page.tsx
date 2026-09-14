@@ -2,7 +2,7 @@ import Link from "next/link";
 import {Metric,PageIntro,Panel} from "@/components/ui";
 import {StatusPill} from "@/components/status-pill";
 import {fmtDate,number,truncate} from "@/lib/format";
-import {countRows,getContentJobsPage,getPublishJobsPage} from "@/lib/db";
+import {countRows,getContentJobsByIds,getContentJobsPage,getPublishJobsPage} from "@/lib/db";
 import {authEnabled,isOperator} from "@/lib/auth";
 import {contentRequeueAction,publishDecisionAction} from "@/app/actions";
 import type {ContentJobRow} from "@/lib/types";
@@ -36,9 +36,10 @@ export default async function ContentPage({searchParams}:{searchParams:Promise<{
     countRows("beskot_content_jobs",{status:"eq.failed"})
   ]);
   const actionsAvailable=authEnabled()&&operator;
+  const publishSources=await getContentJobsByIds(publish.data.map(x=>x.source_job_id||0));
   const total=active==="approval"?(publish.count??0):(jobs.count??0);
   const pages=Math.max(1,Math.ceil(total/25));
-  const byId=new Map(jobs.data.map(j=>[j.id,j]));
+  const byId=new Map([...jobs.data,...publishSources.data].map(j=>[j.id,j]));
 
   return <>
     <PageIntro title="Content Production" subtitle="Pagination من الخادم، 25 سجل في الصفحة، مع تحكم آمن في Retry وPublish."/>
