@@ -1,13 +1,14 @@
 import type {ContentJobRow,MatchRow,MonitorRow,PublishRow,StoryRow} from "./types";
 const url=process.env.SUPABASE_URL||"https://bfivqrqsojwmeeuptjxw.supabase.co";
-const key=process.env.SUPABASE_SERVICE_ROLE_KEY;
+const key=process.env.SUPABASE_SECRET_KEY||process.env.SUPABASE_SERVICE_ROLE_KEY;
 type RestResult<T>={data:T;count:number|null};
-function headers(){if(!key)throw new Error("SUPABASE_SERVICE_ROLE_KEY is missing. Add it to the deployment environment.");return{apikey:key,Authorization:`Bearer ${key}`,Accept:"application/json",Prefer:"count=exact"};}
+export const dataMode=key?"LIVE":"SNAPSHOT";
+function headers(){if(!key)throw new Error("SUPABASE_SECRET_KEY is missing. Add a server-only Supabase secret key in Vercel.");return{apikey:key,Authorization:`Bearer ${key}`,Accept:"application/json",Prefer:"count=exact"};}
 async function rest<T>(table:string,params:Record<string,string>):Promise<RestResult<T>>{
  const qs=new URLSearchParams(params);
  const response=await fetch(`${url}/rest/v1/${table}?${qs.toString()}`,{headers:headers(),cache:"no-store"});
  if(!response.ok){const body=await response.text();throw new Error(`${table}: HTTP ${response.status} — ${body.slice(0,240)}`);}
- const range=response.headers.get("content-range"); const count=range?.includes("/")?Number(range.split("/")[1]):null;
+ const range=response.headers.get("content-range");const count=range?.includes("/")?Number(range.split("/")[1]):null;
  return{data:await response.json() as T,count};
 }
 export async function countRows(table:string,filters:Record<string,string>={}){const r=await rest<unknown[]>(table,{select:"id",limit:"1",...filters});return r.count??0;}
