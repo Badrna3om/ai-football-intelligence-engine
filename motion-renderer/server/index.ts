@@ -82,9 +82,15 @@ async function main() {
       }
 
       const goals = Array.isArray(body.goals) ? body.goals : [];
-      if (goals.length === 0) {
+      const mediaMode = String(body.mediaMode || "").trim().toLowerCase();
+      const dataOnly = mediaMode === "data_only" || mediaMode === "no_media";
+
+      // Data-only is a valid production fallback after final match data is complete.
+      // It intentionally renders presentation/result/stats/(optional MOTM)/outro
+      // without goal-video scenes.
+      if (goals.length === 0 && !dataOnly) {
         missing.push("goals");
-      } else if (!isUrl(body.highlightsVideoUrl)) {
+      } else if (goals.length > 0 && !isUrl(body.highlightsVideoUrl)) {
         goals.forEach((goal:any,index:number)=>{
           if (!isUrl(goal?.videoUrl)) missing.push(`goals[${index}].videoUrl`);
         });
