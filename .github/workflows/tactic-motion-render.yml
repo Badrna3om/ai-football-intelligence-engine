@@ -240,7 +240,7 @@ jobs:
           test -n "${R2_BUCKET:-}"
           test -n "${R2_PUBLIC_URL:-}"
           file="rendered/${job_id}.mp4"
-          object_key="game-${game_id}-final-motion.mp4"
+          object_key="game-${game_id}-${GITHUB_RUN_ID}-final-motion.mp4"
           aws s3 cp "$file" "s3://${R2_BUCKET}/${object_key}" \
             --endpoint-url "$R2_ENDPOINT" \
             --content-type "video/mp4" \
