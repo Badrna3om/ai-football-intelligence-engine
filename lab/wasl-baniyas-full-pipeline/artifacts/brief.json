@@ -1,0 +1,33 @@
+{
+  "version": "1.0",
+  "title": "TACTIC SPORT — Baniyas 0-2 Al Wasl Match Pulse",
+  "hook": "ابدأ بطاقة قصيرة نابضة ثم انتقل بسرعة إلى الهدف الأول مع إبقاء لقطات المباراة هي العنصر البصري الرئيسي.",
+  "key_points": [
+    "عرض الهدفين الحقيقيين مع صوت التعليق الأصلي",
+    "تحويل الإحصائيات الأساسية إلى لحظات موشن منفصلة وليست بطاقات ثابتة",
+    "إبراز كاميرون بويرتاس كنجم المباراة في نهاية تصاعدية",
+    "إغلاق بهوية TACTIC ونتيجة 0-2"
+  ],
+  "core_message": "الوصل حسم المباراة بهدفين بينما تكشف البيانات تفوقه في الجودة الهجومية رغم توازن نسبي في حجم المحاولات.",
+  "cta": "TACTIC SPORT",
+  "tone": "energetic premium Arabic football broadcast",
+  "style": "Match Pulse — source-led sports motion with restrained support graphics",
+  "target_audience": "Arabic football fans in the Gulf",
+  "target_platform": "instagram",
+  "target_duration_seconds": 50,
+  "reference_material": ["goal_01.mp4", "goal_02.mp4", "match facts and supplied assets"],
+  "angle_options": [
+    {"name":"Match Pulse","description":"Real match footage leads; graphics pulse around decisive moments and data."},
+    {"name":"Tactical Data Broadcast","description":"Heavier tactical/data visualization with field motifs and analytical overlays."},
+    {"name":"Night Match Cinema","description":"More cinematic reveals, lighting and atmosphere with fewer data-heavy moments."}
+  ],
+  "selected_angle": "Match Pulse",
+  "metadata": {
+    "pipeline":"hybrid",
+    "anchor_medium":"broll_footage",
+    "render_runtime":"remotion",
+    "deliverable_mix":["hero vertical cut"],
+    "support_layers":["Arabic overlays","animated statistics","MOTM hero","music","TACTIC branding"],
+    "human_approved":true
+  }
+}
