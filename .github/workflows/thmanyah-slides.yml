@@ -1,0 +1,63 @@
+name: Thmanyah Motion Cards
+
+on:
+  push:
+    branches: [openmontage-lab]
+    paths:
+      - '.github/workflows/thmanyah-slides.yml'
+      - 'lab/wasl-baniyas-test/render_thmanyah_slides.py'
+      - 'lab/wasl-baniyas-test/tactic_match.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install render dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y unzip libfribidi0 libharfbuzz0b libraqm0
+          python -m pip install --upgrade pip
+          python -m pip install Pillow
+
+      - name: Download official Thmanyah font family for this ephemeral render only
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/thmanyah
+          curl -fL --retry 3 --retry-delay 2 \
+            'https://public-assets.thmanyah.com/font/Thmanyah-Font-Family.zip' \
+            -o /tmp/Thmanyah-Font-Family.zip
+          unzip -q /tmp/Thmanyah-Font-Family.zip -d /tmp/thmanyah
+          find /tmp/thmanyah -type f | sed -n '1,80p'
+
+      - name: Render Arabic cards
+        run: python lab/wasl-baniyas-test/render_thmanyah_slides.py
+
+      - name: Verify outputs
+        run: |
+          test -f /tmp/tactic-thmanyah/intro.png
+          test -f /tmp/tactic-thmanyah/goal1_overlay.png
+          test -f /tmp/tactic-thmanyah/goal2_overlay.png
+          test -f /tmp/tactic-thmanyah/stats.png
+          test -f /tmp/tactic-thmanyah/motm.png
+          test -f /tmp/tactic-thmanyah/outro.png
+          file /tmp/tactic-thmanyah/*.png
+
+      - name: Upload rendered cards only
+        uses: actions/upload-artifact@v4
+        with:
+          name: wasl-baniyas-thmanyah-cards
+          path: /tmp/tactic-thmanyah/*.png
+          retention-days: 3
