@@ -1,7 +1,6 @@
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont, features
 import json
-import math
 
 W, H = 1080, 1920
 BG = (14, 17, 20, 255)
@@ -20,7 +19,11 @@ FONT_ROOT = Path('/tmp/thmanyah')
 
 def pick_font(*needles):
     needles = [n.lower().replace('-', '').replace('_', '') for n in needles]
-    files = list(FONT_ROOT.rglob('*.otf')) + list(FONT_ROOT.rglob('*.ttf'))
+    files = []
+    for p in list(FONT_ROOT.rglob('*.otf')) + list(FONT_ROOT.rglob('*.ttf')):
+        if '__MACOSX' in p.parts or p.name.startswith('._'):
+            continue
+        files.append(p)
     for p in files:
         key = p.name.lower().replace('-', '').replace('_', '')
         if all(n in key for n in needles):
@@ -55,7 +58,6 @@ def text(draw, xy, value, fnt, fill=WHITE, anchor='mm', direction='rtl', stroke_
 def base(border=False):
     im = Image.new('RGBA', (W, H), BG)
     d = ImageDraw.Draw(im)
-    # subtle diagonal field lines
     for x in range(-500, 1600, 220):
         d.line([(x, 0), (x + 420, H)], fill=(28, 32, 37, 120), width=2)
     if border:
@@ -85,10 +87,8 @@ def render_intro():
 def render_goal_overlay(goal, idx):
     im = Image.new('RGBA', (W, H), (0,0,0,0))
     d = ImageDraw.Draw(im)
-    # top score bug
     rounded(d, (58, 76, 1022, 210), radius=32, fill=(12,15,18,220), outline=(226,176,62,190), width=2)
     text(d, (W//2, 143), 'بني ياس 0 - 2 الوصل', font(SANS_BOLD, 47), WHITE)
-    # lower third
     rounded(d, (54, 1395, 1026, 1748), radius=36, fill=(10,13,16,235), outline=GOLD_SOFT, width=2)
     minute = goal.get('display_minute') or str(goal['minute'])
     text(d, (930, 1483), f"{minute}'", font(SANS_BOLD, 66), GOLD)
