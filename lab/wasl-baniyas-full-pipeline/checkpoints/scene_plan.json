@@ -1,0 +1,28 @@
+{
+  "version": "1.0",
+  "project_id": "wasl-baniyas-full-pipeline",
+  "pipeline_type": "hybrid",
+  "stage": "scene_plan",
+  "status": "awaiting_human",
+  "timestamp": "2026-10-17T23:18:00+04:00",
+  "style_playbook": "premium-minimalist-custom-sports",
+  "checkpoint_policy": "guided",
+  "human_approval_required": true,
+  "human_approved": false,
+  "artifacts": {
+    "scene_plan": "lab/wasl-baniyas-full-pipeline/artifacts/scene_plan.json"
+  },
+  "review": {
+    "result": "pass",
+    "notes": "Anchor footage remains primary in goal scenes; support layers are purposeful; overlay density is explicitly limited; all scenes rely only on supplied assets and known match data. Player-image quality remains a possible asset-stage blocker if transparency is not clean."
+  },
+  "cost_snapshot": {
+    "total_spent_usd": 0,
+    "total_reserved_usd": 0,
+    "budget_remaining_usd": 2
+  },
+  "metadata": {
+    "render_runtime": "remotion",
+    "creative_direction": "Match Pulse"
+  }
+}
