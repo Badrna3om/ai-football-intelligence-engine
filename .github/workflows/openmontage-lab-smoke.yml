@@ -1,0 +1,91 @@
+name: OpenMontage Lab Smoke
+
+on:
+  push:
+    branches: [openmontage-lab]
+    paths:
+      - '.github/workflows/openmontage-lab-smoke.yml'
+      - 'lab/wasl-baniyas-test/RUN_TRIGGER.txt'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout TACTIC lab branch
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg jq
+          ffmpeg -version | head -n 1
+
+      - name: Clone OpenMontage
+        run: git clone --depth 1 https://github.com/calesthio/OpenMontage.git /tmp/OpenMontage
+
+      - name: Install OpenMontage Python dependencies
+        working-directory: /tmp/OpenMontage
+        run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install --upgrade pip
+          .venv/bin/python -m pip install -r requirements.txt
+
+      - name: Install Remotion dependencies
+        working-directory: /tmp/OpenMontage/remotion-composer
+        run: npm install
+
+      - name: Initialize TACTIC match project
+        working-directory: /tmp/OpenMontage
+        run: |
+          .venv/bin/python - <<'PY'
+          from lib.checkpoint import init_project
+          init_project('wasl-baniyas-test', title='بني ياس × الوصل', pipeline_type='hybrid')
+          PY
+          mkdir -p projects/wasl-baniyas-test/assets/video
+          mkdir -p projects/wasl-baniyas-test/assets/images
+          cp "$GITHUB_WORKSPACE/lab/wasl-baniyas-test/tactic_match.json" projects/wasl-baniyas-test/artifacts/tactic_match.json
+          cp "$GITHUB_WORKSPACE/lab/wasl-baniyas-test/PRODUCTION_BRIEF.md" projects/wasl-baniyas-test/PRODUCTION_BRIEF.md
+
+      - name: Audit OpenMontage capabilities
+        working-directory: /tmp/OpenMontage
+        run: |
+          .venv/bin/python - <<'PY'
+          from tools.tool_registry import registry
+          import json
+          registry.discover()
+          print(json.dumps(registry.provider_menu_summary(), indent=2))
+          PY
+
+      - name: Verify TACTIC project package
+        working-directory: /tmp/OpenMontage
+        run: |
+          test -f projects/wasl-baniyas-test/artifacts/tactic_match.json
+          test -f projects/wasl-baniyas-test/PRODUCTION_BRIEF.md
+          jq '.game_id, .match.final_score_ar, .man_of_the_match.name_ar' projects/wasl-baniyas-test/artifacts/tactic_match.json
+          find projects/wasl-baniyas-test -maxdepth 3 -type f -print
+
+      - name: Package initialized project
+        run: tar -C /tmp/OpenMontage/projects -czf /tmp/wasl-baniyas-openmontage-lab.tgz wasl-baniyas-test
+
+      - name: Upload lab artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wasl-baniyas-openmontage-lab
+          path: /tmp/wasl-baniyas-openmontage-lab.tgz
+          retention-days: 3
