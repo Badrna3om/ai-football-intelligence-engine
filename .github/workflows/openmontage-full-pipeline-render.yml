@@ -1,0 +1,116 @@
+name: OpenMontage Full Pipeline — Wasl Baniyas
+
+on:
+  push:
+    branches: [openmontage-lab]
+    paths:
+      - '.github/workflows/openmontage-full-pipeline-render.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install runtime
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg unzip imagemagick
+          git clone --depth 1 https://github.com/calesthio/OpenMontage.git /tmp/OpenMontage
+          mkdir -p /tmp/OpenMontage/projects
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - uses: actions/setup-node@v4
+        with: {node-version: '20'}
+      - name: Install OpenMontage
+        run: |
+          cd /tmp/OpenMontage
+          python -m pip install -r requirements.txt
+          cd remotion-composer && npm install
+      - name: Download supplied assets
+        uses: actions/download-artifact@v4
+        with:
+          name: wasl-baniyas-openmontage-seeded-v3
+          path: /tmp/seed
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: Badrna3om/ai-football-intelligence-engine
+          run-id: 39040393459
+      - name: Assemble approved pipeline project
+        run: |
+          set -euo pipefail
+          OM=/tmp/OpenMontage
+          tar -xzf /tmp/seed/wasl-baniyas-openmontage-seeded.tgz -C "$OM/projects"
+          mv "$OM/projects/wasl-baniyas-test" "$OM/projects/wasl-baniyas-full-pipeline"
+          P=$OM/projects/wasl-baniyas-full-pipeline
+          mkdir -p "$P/public" "$P/artifacts" "$P/renders"
+          cp lab/wasl-baniyas-full-pipeline/compose/index.tsx "$P/index.tsx"
+          cp lab/wasl-baniyas-full-pipeline/compose/Root.tsx "$P/Root.tsx"
+          cp lab/wasl-baniyas-full-pipeline/compose/TacticMatchPulse.tsx "$P/TacticMatchPulse.tsx"
+          cp lab/wasl-baniyas-full-pipeline/artifacts/edit_decisions.json "$P/artifacts/edit_decisions-approved.json"
+          cp "$P/assets/video/goal_01.mp4" "$P/public/goal_01.mp4"
+          cp "$P/assets/video/goal_02.mp4" "$P/public/goal_02.mp4"
+          cp "$P/assets/images/baniyas_logo.png" "$P/public/baniyas_logo.png"
+          cp "$P/assets/images/wasl_logo.png" "$P/public/wasl_logo.png"
+          cp "$P/assets/images/tactic_logo.png" "$P/public/tactic_logo.png"
+          cp "$P/assets/images/cameron_puertas_cutout.png" "$P/public/cameron_puertas_cutout.png"
+          convert "$P/public/cameron_puertas_cutout.png" -alpha on -fuzz 12% -transparent white "$P/public/cameron_puertas_cutout_clean.png" || cp "$P/public/cameron_puertas_cutout.png" "$P/public/cameron_puertas_cutout_clean.png"
+          FONT=$(find "$P/assets/fonts" -type f -iname '*Sans*Bold*.otf' ! -name '._*' ! -path '*/__MACOSX/*' | head -1)
+          test -n "$FONT" && cp "$FONT" "$P/public/thmanyah-bold.otf"
+          python - <<'PY'
+          import math,wave,struct,random
+          out='/tmp/OpenMontage/projects/wasl-baniyas-full-pipeline/public/music.wav'; sr=48000; dur=50; bpm=132; beat=60/bpm; rnd=random.Random(19)
+          with wave.open(out,'wb') as w:
+            w.setnchannels(2);w.setsampwidth(2);w.setframerate(sr)
+            for i in range(sr*dur):
+              t=i/sr; ph=(t%beat)/beat
+              kick=(math.sin(2*math.pi*(82-34*min(ph,.2)/.2)*t)*math.exp(-ph*20) if ph<.22 else 0)
+              sn=((rnd.random()*2-1)*math.exp(-((ph-.5)%1)*28)*0.12 if ph>.48 else 0)
+              bass=math.sin(2*math.pi*[55,65.4,73.4,82.4][int(t/(beat*2))%4]*t)*0.18
+              pulse=math.sin(2*math.pi*220*t)*(0.025 if int(t/(beat/2))%2==0 else 0.012)
+              rise=(rnd.random()*2-1)*0.02*(t/dur)
+              s=int(max(-.9,min(.9,.36*kick+sn+bass+pulse+rise))*32767); w.writeframesraw(struct.pack('<hh',s,s))
+          PY
+          cat > "$P/artifacts/edit_decisions.json" <<JSON
+          {
+            "version":"1.0","cuts":[],"renderer_family":"cinematic-trailer","render_runtime":"remotion","composition_mode":"atelier",
+            "bespoke":{"entry":"$P/index.tsx","composition_id":"TacticMatchPulse","public_dir":"$P/public","art_direction":"Approved Match Pulse full-pipeline composition: source-led goals, Thmanyah Arabic, distinct animated stat language, premium dark tactical broadcast, player-hero close.","scale":1.0,"crf":18,"concurrency":4},
+            "metadata":{"pipeline":"hybrid","source":"approved full OpenMontage gates"}
+          }
+          JSON
+      - name: Render via official OpenMontage VideoCompose
+        run: |
+          set -euo pipefail
+          cd /tmp/OpenMontage
+          python - <<'PY'
+          import json,sys
+          from pathlib import Path
+          from tools.video.video_compose import VideoCompose
+          P=Path('/tmp/OpenMontage/projects/wasl-baniyas-full-pipeline')
+          edit=json.loads((P/'artifacts/edit_decisions.json').read_text())
+          r=VideoCompose().execute({'operation':'render','output_path':str(P/'renders/final.mp4'),'edit_decisions':edit,'remotion_timeout_ms':240000})
+          print('SUCCESS',r.success); print('ERROR',r.error)
+          if not r.success: sys.exit(1)
+          PY
+      - name: QC
+        run: |
+          set -euo pipefail
+          P=/tmp/OpenMontage/projects/wasl-baniyas-full-pipeline
+          ffprobe -v error -show_entries format=duration,size -show_entries stream=codec_name,width,height,r_frame_rate -of json "$P/renders/final.mp4" | tee "$P/artifacts/final_ffprobe.json"
+          mkdir -p "$P/artifacts/qc"
+          for T in 1 6 16 25.5 28 31 34 37 41 48; do ffmpeg -y -loglevel error -ss "$T" -i "$P/renders/final.mp4" -frames:v 1 -vf scale=270:480 "$P/artifacts/qc/${T}.jpg"; done
+      - name: Upload final
+        uses: actions/upload-artifact@v4
+        with:
+          name: wasl-baniyas-openmontage-full-pipeline
+          path: |
+            /tmp/OpenMontage/projects/wasl-baniyas-full-pipeline/renders/final.mp4
+            /tmp/OpenMontage/projects/wasl-baniyas-full-pipeline/artifacts/final_ffprobe.json
+            /tmp/OpenMontage/projects/wasl-baniyas-full-pipeline/artifacts/qc/*.jpg
+            /tmp/OpenMontage/projects/wasl-baniyas-full-pipeline/artifacts/edit_decisions-approved.json
+          retention-days: 5
