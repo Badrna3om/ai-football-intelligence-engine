@@ -1,0 +1,15 @@
+{
+  "version": "1.0",
+  "project_id": "wasl-baniyas-full-pipeline",
+  "pipeline_type": "hybrid",
+  "stage": "edit",
+  "status": "completed",
+  "timestamp": "2026-10-17T19:20:00Z",
+  "style_playbook": "premium-minimalist",
+  "checkpoint_policy": "guided",
+  "human_approval_required": false,
+  "human_approved": true,
+  "artifacts": {"edit_decisions":"artifacts/edit_decisions.json"},
+  "review": {"status":"pass","notes":"Anchor cut is understandable without support graphics; overlays remain subordinate to footage; mobile readability protected."},
+  "cost_snapshot": {"total_spent_usd":0,"total_reserved_usd":0,"budget_remaining_usd":2}
+}
