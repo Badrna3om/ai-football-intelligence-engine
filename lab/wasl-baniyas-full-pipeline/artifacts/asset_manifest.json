@@ -1,0 +1,126 @@
+{
+  "version": "1.0",
+  "assets": [
+    {
+      "id": "goal-01",
+      "type": "video",
+      "path": "assets/video/goal_01.mp4",
+      "source_tool": "provided_source",
+      "scene_id": "goal_01",
+      "subtype": "source",
+      "generation_summary": "Provided match footage; preserve native commentary/crowd audio and keep visually primary.",
+      "format": "mp4"
+    },
+    {
+      "id": "goal-02",
+      "type": "video",
+      "path": "assets/video/goal_02.mp4",
+      "source_tool": "provided_source",
+      "scene_id": "goal_02",
+      "subtype": "source",
+      "generation_summary": "Provided match footage; preserve native commentary/crowd audio and keep visually primary.",
+      "format": "mp4"
+    },
+    {
+      "id": "baniyas-logo",
+      "type": "image",
+      "path": "assets/images/baniyas_logo.png",
+      "source_tool": "provided_source",
+      "scene_id": "shared",
+      "subtype": "provided",
+      "generation_summary": "Provided club crest for intro, stat comparison and closing.",
+      "format": "png"
+    },
+    {
+      "id": "wasl-logo",
+      "type": "image",
+      "path": "assets/images/wasl_logo.png",
+      "source_tool": "provided_source",
+      "scene_id": "shared",
+      "subtype": "provided",
+      "generation_summary": "Provided club crest for intro, stat comparison, MOTM and closing.",
+      "format": "png"
+    },
+    {
+      "id": "tactic-logo",
+      "type": "image",
+      "path": "assets/images/tactic_logo.png",
+      "source_tool": "provided_source",
+      "scene_id": "shared",
+      "subtype": "provided",
+      "generation_summary": "Provided TACTIC brand mark for opening/closing sting only; avoid persistent watermark dominance.",
+      "format": "png"
+    },
+    {
+      "id": "puertas-cutout",
+      "type": "image",
+      "path": "assets/images/cameron_puertas_cutout.png",
+      "source_tool": "provided_source",
+      "scene_id": "motm",
+      "subtype": "provided",
+      "generation_summary": "Provided Cameron Puertas player image for MOTM hero scene. Asset quality must be checked for unwanted white background/poor cutout before compose.",
+      "format": "png"
+    },
+    {
+      "id": "thmanyah-font",
+      "type": "font",
+      "path": "assets/fonts/thmanyah/Thmanyah-Sans-Bold.otf",
+      "source_tool": "provided_source",
+      "scene_id": "shared",
+      "subtype": "provided",
+      "generation_summary": "Supplied Thmanyah Arabic font; mandatory for all Arabic typography.",
+      "format": "otf"
+    },
+    {
+      "id": "sports-bed",
+      "type": "music",
+      "path": "assets/music/match_pulse_bed.wav",
+      "source_tool": "music_gen_or_local_fallback",
+      "scene_id": "shared",
+      "subtype": "generated",
+      "generation_summary": "Original energetic sports-cinematic underscore generated for this production. No narration. Music must duck under native goal commentary and crowd peaks.",
+      "format": "wav",
+      "cost_usd": 0
+    },
+    {
+      "id": "overlay-system",
+      "type": "animation",
+      "path": "assets/animation/match_pulse_overlay_system.json",
+      "source_tool": "agent_authored",
+      "scene_id": "shared",
+      "subtype": "generated",
+      "generation_summary": "Reusable compact lower-third, comparison-label and score-lockup rules for Remotion; designed to support rather than cover source footage.",
+      "format": "json",
+      "cost_usd": 0
+    },
+    {
+      "id": "stats-motion-system",
+      "type": "animation",
+      "path": "assets/animation/stats_motion_system.json",
+      "source_tool": "agent_authored",
+      "scene_id": "stats",
+      "subtype": "generated",
+      "generation_summary": "Per-stat motion specification: possession split-field fill, xG dual rails, shot trails, on-target target hits, big-chance box pulses, corner arcs.",
+      "format": "json",
+      "cost_usd": 0
+    }
+  ],
+  "total_cost_usd": 0,
+  "metadata": {
+    "pipeline": "hybrid",
+    "render_runtime": "remotion",
+    "concept": "Match Pulse",
+    "source_vs_generated_map": {
+      "source": ["goal-01", "goal-02"],
+      "provided": ["baniyas-logo", "wasl-logo", "tactic-logo", "puertas-cutout", "thmanyah-font"],
+      "generated_support": ["sports-bed", "overlay-system", "stats-motion-system"]
+    },
+    "shared_support_assets": ["overlay-system", "stats-motion-system", "sports-bed", "thmanyah-font"],
+    "asset_quality_notes": [
+      "Do not generate replacement football imagery or fake match footage.",
+      "MOTM player image must be visually inspected for background/cutout quality before compose.",
+      "Arabic typography must use Thmanyah with RTL-safe layout.",
+      "No TTS or narration asset is required because native commentary is the stronger source-led audio."
+    ]
+  }
+}
