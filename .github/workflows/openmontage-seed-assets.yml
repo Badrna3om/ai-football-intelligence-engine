@@ -1,0 +1,71 @@
+name: Seed OpenMontage Assets
+
+on:
+  push:
+    branches: [openmontage-lab]
+    paths:
+      - '.github/workflows/openmontage-seed-assets.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout TACTIC lab
+        uses: actions/checkout@v4
+
+      - name: Clone OpenMontage
+        run: git clone --depth 1 https://github.com/calesthio/OpenMontage.git /tmp/OpenMontage
+
+      - name: Create production project structure
+        run: |
+          set -euo pipefail
+          P=/tmp/OpenMontage/projects/wasl-baniyas-test
+          mkdir -p "$P/assets/video" "$P/assets/images" "$P/assets/fonts" "$P/assets/music" "$P/artifacts" "$P/renders"
+          cp lab/wasl-baniyas-test/tactic_match.json "$P/artifacts/tactic_match.json"
+          cp lab/wasl-baniyas-test/PRODUCTION_BRIEF.md "$P/PRODUCTION_BRIEF.md"
+          cp lab/wasl-baniyas-test/OPENMONTAGE_AGENT_PROMPT.md "$P/OPENMONTAGE_AGENT_PROMPT.md"
+
+      - name: Download real goal footage and visual assets
+        run: |
+          set -euo pipefail
+          P=/tmp/OpenMontage/projects/wasl-baniyas-test
+          curl -fL --retry 3 'https://sdmntpraustraliaeast.oaiusercontent.com/files/00000000-4900-81fa-918b-a2ea14512c93/raw?se=2026-10-17T14%3A22%3A41Z&sp=r&sv=2026-02-06&sr=b&scid=3743fd0a-c469-5097-8cea-6300df21663b&skoid=cb94e22a-e3df-4e6a-9e17-1696f40fa435&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-10-17T01%3A51%3A36Z&ske=2026-10-18T01%3A51%3A36Z&sks=b&skv=2026-02-06&sig=jNrtAkNFQN2%2BBRTyFjw932ZJGIw8AwxOrMoBNiLSkes%3D' -o "$P/assets/video/goal_01.mp4"
+          curl -fL --retry 3 'https://sdmntpraustraliaeast.oaiusercontent.com/files/00000000-699c-81fa-9ce4-d1578636f00e/raw?se=2026-10-17T14%3A23%3A04Z&sp=r&sv=2026-02-06&sr=b&scid=88ae2a36-1424-5f5e-92d2-ec786cc446a5&skoid=cb94e22a-e3df-4e6a-9e17-1696f40fa435&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-10-17T06%3A06%3A33Z&ske=2026-10-18T06%3A06%3A33Z&sks=b&skv=2026-02-06&sig=TWoGrmi3Fbe7HHB5BtARst6keFKAfi6pvrLlQPgSZB4%3D' -o "$P/assets/video/goal_02.mp4"
+          curl -fL --retry 3 'https://sdmntpraustraliaeast.oaiusercontent.com/files/00000000-32f0-81fa-9275-68f9fa682ef8/raw?se=2026-10-17T14%3A23%3A11Z&sp=r&sv=2026-02-06&sr=b&scid=537d3b73-88aa-5e20-8653-98b2e76ea78a&skoid=cb94e22a-e3df-4e6a-9e17-1696f40fa435&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-10-17T13%3A24%3A19Z&ske=2026-10-18T13%3A24%3A19Z&sks=b&skv=2026-02-06&sig=mlAR7/KEjHfhnNc97qgXeeZoLLIz/QpqO9Jrz/aX6JI%3D' -o "$P/assets/images/baniyas_logo.png"
+          curl -fL --retry 3 'https://sdmntprwestus2.oaiusercontent.com/files/00000000-c1b4-81f8-ab7c-24fb199fc91e/raw?se=2026-10-17T14%3A23%3A19Z&sp=r&sv=2026-02-06&sr=b&scid=ee380041-1e3a-54d9-95db-07cd45c0524d&skoid=cb94e22a-e3df-4e6a-9e17-1696f40fa435&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-10-17T12%3A57%3A44Z&ske=2026-10-18T12%3A57%3A44Z&sks=b&skv=2026-02-06&sig=86a8MnKnWJ6tC2d6lDqcVN9pOoffggZ3CAmuaOjP9OI%3D' -o "$P/assets/images/wasl_logo.png"
+          curl -fL --retry 3 'https://sdmntpraustraliaeast.oaiusercontent.com/files/00000000-5fd0-81fa-8847-1f6e7d447e46/raw?se=2026-10-17T14%3A23%3A25Z&sp=r&sv=2026-02-06&sr=b&scid=a62d7529-6f6e-5c8e-a641-a55abde85fb7&skoid=cb94e22a-e3df-4e6a-9e17-1696f40fa435&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-10-17T04%3A34%3A38Z&ske=2026-10-18T04%3A34%3A38Z&sks=b&skv=2026-02-06&sig=mOz%2ByfjbZvevagdNCvdQoa8kfVlefgon2THpe0QPLbI%3D' -o "$P/assets/images/tactic_logo.png"
+          curl -fL --retry 3 'https://sdmntpraustraliaeast.oaiusercontent.com/files/00000000-13e0-81fa-8903-3ccfc3f0b02f/raw?se=2026-10-17T14%3A18%3A17Z&sp=r&sv=2026-02-06&sr=b&scid=4156004c-5d5a-531b-a6b0-63f24ee81c10&skoid=cb94e22a-e3df-4e6a-9e17-1696f40fa435&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-10-17T08%3A26%3A14Z&ske=2026-10-18T08%3A26%3A14Z&sks=b&skv=2026-02-06&sig=nixVkWYULoZjC2IkR2r78RzDitA5QatrBgm8SoWcOa0%3D' -o "$P/assets/images/cameron_puertas_cutout.png" || true
+
+      - name: Add official Thmanyah font family
+        run: |
+          set -euo pipefail
+          P=/tmp/OpenMontage/projects/wasl-baniyas-test
+          curl -fL --retry 3 'https://public-assets.thmanyah.com/font/Thmanyah-Font-Family.zip' -o /tmp/thmanyah.zip
+          unzip -q /tmp/thmanyah.zip -d "$P/assets/fonts/thmanyah"
+
+      - name: Verify complete asset package
+        run: |
+          set -euo pipefail
+          P=/tmp/OpenMontage/projects/wasl-baniyas-test
+          ffprobe -v error -show_entries stream=codec_name,width,height -of json "$P/assets/video/goal_01.mp4"
+          ffprobe -v error -show_entries stream=codec_name,width,height -of json "$P/assets/video/goal_02.mp4"
+          test -s "$P/assets/images/baniyas_logo.png"
+          test -s "$P/assets/images/wasl_logo.png"
+          test -s "$P/assets/images/tactic_logo.png"
+          test -f "$P/artifacts/tactic_match.json"
+          find "$P" -maxdepth 4 -type f -printf '%P %s bytes\n' | sort
+
+      - name: Package seeded OpenMontage project
+        run: tar -C /tmp/OpenMontage/projects -czf /tmp/wasl-baniyas-openmontage-seeded.tgz wasl-baniyas-test
+
+      - name: Upload seeded project artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wasl-baniyas-openmontage-seeded
+          path: /tmp/wasl-baniyas-openmontage-seeded.tgz
+          retention-days: 3
