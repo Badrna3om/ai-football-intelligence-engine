@@ -1,0 +1,170 @@
+name: OpenMontage Real Render V2 — Wasl Baniyas
+
+on:
+  push:
+    branches: [openmontage-lab]
+    paths:
+      - '.github/workflows/openmontage-real-render-v2.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: System prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg unzip
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install OpenMontage runtime
+        run: |
+          set -euo pipefail
+          git clone --depth 1 https://github.com/calesthio/OpenMontage.git /tmp/OpenMontage
+          cd /tmp/OpenMontage
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          cd remotion-composer
+          npm install
+
+      - name: Download previously seeded real asset package
+        uses: actions/download-artifact@v4
+        with:
+          name: wasl-baniyas-openmontage-seeded-v3
+          path: /tmp/seed
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: Badrna3om/ai-football-intelligence-engine
+          run-id: 39040393459
+
+      - name: Assemble OpenMontage atelier project from seeded assets
+        run: |
+          set -euo pipefail
+          OM=/tmp/OpenMontage
+          tar -xzf /tmp/seed/wasl-baniyas-openmontage-seeded.tgz -C "$OM/projects"
+          P=$OM/projects/wasl-baniyas-test
+          mkdir -p "$P/public" "$P/artifacts" "$P/renders"
+
+          cp lab/wasl-baniyas-test/atelier/index.tsx "$P/index.tsx"
+          cp lab/wasl-baniyas-test/atelier/Root.tsx "$P/Root.tsx"
+          cp lab/wasl-baniyas-test/atelier/Composition.tsx "$P/Composition.tsx"
+          cp lab/wasl-baniyas-test/atelier/art-direction.md "$P/art-direction.md"
+
+          cp "$P/assets/video/goal_01.mp4" "$P/public/goal_01.mp4"
+          cp "$P/assets/video/goal_02.mp4" "$P/public/goal_02.mp4"
+          cp "$P/assets/images/baniyas_logo.png" "$P/public/baniyas_logo.png"
+          cp "$P/assets/images/wasl_logo.png" "$P/public/wasl_logo.png"
+          cp "$P/assets/images/tactic_logo.png" "$P/public/tactic_logo.png"
+          cp "$P/assets/images/cameron_puertas_cutout.png" "$P/public/cameron_puertas_cutout.png"
+
+          FONT=$(find "$P/assets/fonts" -type f -iname '*Sans*Bold*.otf' ! -name '._*' ! -path '*/__MACOSX/*' | head -1)
+          test -n "$FONT"
+          cp "$FONT" "$P/public/thmanyah-bold.otf"
+
+          python - <<'PY'
+          import math, wave, struct, random
+          out='/tmp/OpenMontage/projects/wasl-baniyas-test/public/music.wav'
+          sr=48000; dur=50; bpm=128; n=sr*dur; beat=60/bpm
+          rnd=random.Random(77)
+          with wave.open(out,'wb') as w:
+              w.setnchannels(2); w.setsampwidth(2); w.setframerate(sr)
+              for i in range(n):
+                  t=i/sr; phase=(t%beat)/beat
+                  kick=math.sin(2*math.pi*(72-28*min(phase,.22)/.22)*t)*math.exp(-phase*18) if phase<.24 else 0
+                  bass=math.sin(2*math.pi*[55,65.4,73.4,49][int(t/(beat*4))%4]*t)*0.22
+                  hat=(rnd.random()*2-1)*math.exp(-(phase*2%1)*45)*0.04
+                  pad=(math.sin(2*math.pi*110*t)+.6*math.sin(2*math.pi*165*t))*0.035
+                  v=max(-.9,min(.9,.34*kick+bass+hat+pad))
+                  s=int(v*32767)
+                  w.writeframesraw(struct.pack('<hh',s,s))
+          PY
+
+          echo '{}' > "$P/artifacts/props.json"
+          cat > "$P/artifacts/edit_decisions.json" <<JSON
+          {
+            "version":"1.0",
+            "cuts":[],
+            "renderer_family":"cinematic-trailer",
+            "render_runtime":"remotion",
+            "composition_mode":"atelier",
+            "bespoke":{
+              "entry":"$P/index.tsx",
+              "composition_id":"TacticWaslBaniyas",
+              "props_path":"$P/artifacts/props.json",
+              "public_dir":"$P/public",
+              "art_direction":"$P/art-direction.md",
+              "scale":1.0,
+              "crf":18,
+              "concurrency":4
+            },
+            "metadata":{"proposal_render_runtime":"remotion","pipeline":"hybrid","brand":"TACTIC SPORT"}
+          }
+          JSON
+
+          test -s "$P/public/goal_01.mp4"
+          test -s "$P/public/goal_02.mp4"
+          test -s "$P/public/cameron_puertas_cutout.png"
+          test -s "$P/public/thmanyah-bold.otf"
+          ffprobe -v error -show_entries stream=codec_name,width,height -of json "$P/public/goal_01.mp4"
+          ffprobe -v error -show_entries stream=codec_name,width,height -of json "$P/public/goal_02.mp4"
+
+      - name: Render through official OpenMontage video_compose atelier path
+        run: |
+          set -euo pipefail
+          cd /tmp/OpenMontage
+          python - <<'PY'
+          import json, sys
+          from pathlib import Path
+          from tools.video.video_compose import VideoCompose
+          P=Path('/tmp/OpenMontage/projects/wasl-baniyas-test')
+          edit=json.loads((P/'artifacts/edit_decisions.json').read_text())
+          composer=VideoCompose()
+          print('render engines=', composer.get_info().get('render_engines'))
+          result=composer.execute({
+              'operation':'render',
+              'output_path':str(P/'renders/final.mp4'),
+              'edit_decisions':edit,
+              'remotion_timeout_ms':180000,
+          })
+          print('success=', result.success)
+          print('error=', result.error)
+          print('data=', getattr(result,'data',None))
+          if not result.success:
+              sys.exit(1)
+          PY
+
+      - name: Delivery checks
+        run: |
+          set -euo pipefail
+          P=/tmp/OpenMontage/projects/wasl-baniyas-test
+          test -s "$P/renders/final.mp4"
+          ffprobe -v error -show_entries format=duration,size -show_entries stream=codec_name,width,height,r_frame_rate -of json "$P/renders/final.mp4" | tee "$P/artifacts/final_ffprobe.json"
+          mkdir -p "$P/artifacts/qc"
+          for T in 1 5 14 25 30 34 38 42 47 49; do
+            ffmpeg -y -loglevel error -ss "$T" -i "$P/renders/final.mp4" -frames:v 1 -vf scale=270:480 "$P/artifacts/qc/${T}.jpg"
+          done
+
+      - name: Upload real OpenMontage render and QC
+        uses: actions/upload-artifact@v4
+        with:
+          name: wasl-baniyas-openmontage-real-render-v2
+          path: |
+            /tmp/OpenMontage/projects/wasl-baniyas-test/renders/final.mp4
+            /tmp/OpenMontage/projects/wasl-baniyas-test/artifacts/final_ffprobe.json
+            /tmp/OpenMontage/projects/wasl-baniyas-test/artifacts/qc/*.jpg
+            /tmp/OpenMontage/projects/wasl-baniyas-test/artifacts/edit_decisions.json
+            /tmp/OpenMontage/projects/wasl-baniyas-test/art-direction.md
+          retention-days: 5
