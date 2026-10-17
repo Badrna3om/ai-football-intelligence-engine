@@ -1,0 +1,182 @@
+name: OpenMontage Blind Test — Wasl Baniyas
+
+on:
+  push:
+    branches: [openmontage-lab]
+    paths:
+      - '.github/workflows/openmontage-blind-test.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  blind-production:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system runtime
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg unzip
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install OpenMontage
+        run: |
+          set -euo pipefail
+          git clone --depth 1 https://github.com/calesthio/OpenMontage.git /tmp/OpenMontage
+          cd /tmp/OpenMontage
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          cd remotion-composer
+          npm install
+
+      - name: Download supplied match assets only
+        uses: actions/download-artifact@v4
+        with:
+          name: wasl-baniyas-openmontage-seeded-v3
+          path: /tmp/seed
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: Badrna3om/ai-football-intelligence-engine
+          run-id: 39040393459
+
+      - name: Build fresh blind project from inputs
+        run: |
+          set -euo pipefail
+          OM=/tmp/OpenMontage
+          mkdir -p /tmp/input_extract "$OM/projects"
+          tar -xzf /tmp/seed/wasl-baniyas-openmontage-seeded.tgz -C /tmp/input_extract
+          SRC=/tmp/input_extract/wasl-baniyas-test
+          P=$OM/projects/wasl-baniyas-blind
+          mkdir -p "$P/assets/video" "$P/assets/images" "$P/assets/fonts" "$P/public" "$P/artifacts" "$P/renders"
+
+          # Blind-test rule: copy source assets only. No previous composition/art direction/artifacts.
+          cp "$SRC/assets/video/goal_01.mp4" "$P/assets/video/goal_01.mp4"
+          cp "$SRC/assets/video/goal_02.mp4" "$P/assets/video/goal_02.mp4"
+          cp "$SRC/assets/images/baniyas_logo.png" "$P/assets/images/baniyas_logo.png"
+          cp "$SRC/assets/images/wasl_logo.png" "$P/assets/images/wasl_logo.png"
+          cp "$SRC/assets/images/tactic_logo.png" "$P/assets/images/tactic_logo.png"
+          cp "$SRC/assets/images/cameron_puertas_cutout.png" "$P/assets/images/cameron_puertas_cutout.png"
+          cp -R "$SRC/assets/fonts/." "$P/assets/fonts/"
+
+          cp lab/wasl-baniyas-blind/BLIND_INPUT.md "$P/BLIND_INPUT.md"
+          cp lab/wasl-baniyas-blind/agent/index.tsx "$P/index.tsx"
+          cp lab/wasl-baniyas-blind/agent/Root.tsx "$P/Root.tsx"
+          cp lab/wasl-baniyas-blind/agent/Composition.tsx "$P/Composition.tsx"
+
+          cp "$P/assets/video/goal_01.mp4" "$P/public/goal_01.mp4"
+          cp "$P/assets/video/goal_02.mp4" "$P/public/goal_02.mp4"
+          cp "$P/assets/images/baniyas_logo.png" "$P/public/baniyas_logo.png"
+          cp "$P/assets/images/wasl_logo.png" "$P/public/wasl_logo.png"
+          cp "$P/assets/images/tactic_logo.png" "$P/public/tactic_logo.png"
+          cp "$P/assets/images/cameron_puertas_cutout.png" "$P/public/cameron_puertas_cutout.png"
+          FONT=$(find "$P/assets/fonts" -type f -iname '*Sans*Bold*.otf' ! -name '._*' ! -path '*/__MACOSX/*' | head -1)
+          test -n "$FONT"
+          cp "$FONT" "$P/public/thmanyah-bold.otf"
+
+          # Original royalty-safe music generated inside this blind run.
+          python - <<'PY'
+          import math, wave, struct, random
+          out='/tmp/OpenMontage/projects/wasl-baniyas-blind/public/music.wav'
+          sr=48000; dur=51; bpm=132; n=sr*dur; beat=60/bpm; rnd=random.Random(913)
+          roots=[55.0,61.74,73.42,49.0]
+          with wave.open(out,'wb') as w:
+              w.setnchannels(2); w.setsampwidth(2); w.setframerate(sr)
+              for i in range(n):
+                  t=i/sr; ph=(t%beat)/beat; bar=int(t/(beat*4)); root=roots[bar%4]
+                  kick=(math.sin(2*math.pi*(75-34*min(ph,.2)/.2)*t)*math.exp(-ph*19)) if ph<.23 else 0
+                  bass=(math.sin(2*math.pi*root*t)+.35*math.sin(2*math.pi*root*2*t))*0.16
+                  pulse=math.sin(2*math.pi*(root*4)*t)*0.025*(1 if ph<.5 else .35)
+                  hat=(rnd.random()*2-1)*math.exp(-((ph*2)%1)*55)*0.035
+                  rise=0.02*math.sin(2*math.pi*(220+8*t)*t)
+                  v=max(-.88,min(.88,.38*kick+bass+pulse+hat+rise))
+                  s=int(v*32767); w.writeframesraw(struct.pack('<hh',s,s))
+          PY
+
+          # Agent-produced OpenMontage stage artifacts: generated fresh from BLIND_INPUT only.
+          cat > "$P/artifacts/brief.json" <<'JSON'
+          {"pipeline":"hybrid","intent":"premium Arabic vertical football recap","anchor_medium":"supplied goal footage","support_layers":["brand graphics","animated match data","MOTM portrait","music"],"duration_seconds":50,"aspect":"9:16","language":"ar","creative_direction":"source-led broadcast energy with authored data visualization"}
+          JSON
+          cat > "$P/artifacts/script.json" <<'JSON'
+          {"beats":[{"t":"0-4","role":"hook","content":"final score and match identity"},{"t":"4-16","role":"source","content":"Taremi goal with original audio"},{"t":"16-28","role":"source","content":"Puertas goal with original audio"},{"t":"28-39","role":"support","content":"possession, xG, shots, big chances"},{"t":"39-46","role":"support","content":"Puertas MOTM"},{"t":"46-50","role":"close","content":"final score and TACTIC brand"}]}
+          JSON
+          cat > "$P/artifacts/scene_plan.json" <<'JSON'
+          {"scenes":[{"id":"intro","t":4,"treatment":"kinetic score reveal"},{"id":"goal1","t":12,"treatment":"full-bleed source footage plus minimal broadcast typography"},{"id":"goal2","t":12,"treatment":"full-bleed source footage plus minimal broadcast typography"},{"id":"stats","t":11,"treatment":"four distinct animated visualizations"},{"id":"motm","t":7,"treatment":"hero portrait and staggered metrics"},{"id":"outro","t":4,"treatment":"score lockup and brand close"}]}
+          JSON
+          cat > "$P/artifacts/asset_manifest.json" <<'JSON'
+          {"assets":["public/goal_01.mp4","public/goal_02.mp4","public/baniyas_logo.png","public/wasl_logo.png","public/tactic_logo.png","public/cameron_puertas_cutout.png","public/thmanyah-bold.otf","public/music.wav"]}
+          JSON
+          echo '{}' > "$P/artifacts/props.json"
+          cat > "$P/artifacts/edit_decisions.json" <<JSON
+          {
+            "version":"1.0",
+            "cuts":[],
+            "renderer_family":"sports-broadcast",
+            "render_runtime":"remotion",
+            "composition_mode":"atelier",
+            "bespoke":{
+              "entry":"$P/index.tsx",
+              "composition_id":"TacticBlindWaslBaniyas",
+              "props_path":"$P/artifacts/props.json",
+              "public_dir":"$P/public",
+              "scale":1.0,
+              "crf":18,
+              "concurrency":4
+            },
+            "metadata":{"proposal_render_runtime":"remotion","pipeline":"hybrid","blind_test":true,"brand":"TACTIC SPORT"}
+          }
+          JSON
+
+          test -s "$P/public/goal_01.mp4"
+          test -s "$P/public/goal_02.mp4"
+          test -s "$P/Composition.tsx"
+
+      - name: Render with official OpenMontage VideoCompose
+        run: |
+          set -euo pipefail
+          cd /tmp/OpenMontage
+          python - <<'PY'
+          import json,sys
+          from pathlib import Path
+          from tools.video.video_compose import VideoCompose
+          P=Path('/tmp/OpenMontage/projects/wasl-baniyas-blind')
+          edit=json.loads((P/'artifacts/edit_decisions.json').read_text())
+          composer=VideoCompose()
+          result=composer.execute({'operation':'render','output_path':str(P/'renders/final.mp4'),'edit_decisions':edit,'remotion_timeout_ms':300000})
+          print('OpenMontage success=',result.success)
+          print('OpenMontage error=',result.error)
+          print('OpenMontage data=',getattr(result,'data',None))
+          if not result.success: sys.exit(1)
+          PY
+
+      - name: QC blind result
+        run: |
+          set -euo pipefail
+          P=/tmp/OpenMontage/projects/wasl-baniyas-blind
+          test -s "$P/renders/final.mp4"
+          ffprobe -v error -show_entries format=duration,size -show_entries stream=codec_name,width,height,r_frame_rate -of json "$P/renders/final.mp4" | tee "$P/artifacts/final_ffprobe.json"
+          mkdir -p "$P/artifacts/qc"
+          for T in 1 5 12 18 25 29 32 35 40 44 48; do
+            ffmpeg -y -loglevel error -ss "$T" -i "$P/renders/final.mp4" -frames:v 1 -vf scale=270:480 "$P/artifacts/qc/${T}.jpg"
+          done
+
+      - name: Upload blind OpenMontage result
+        uses: actions/upload-artifact@v4
+        with:
+          name: wasl-baniyas-openmontage-blind-test
+          path: |
+            /tmp/OpenMontage/projects/wasl-baniyas-blind/renders/final.mp4
+            /tmp/OpenMontage/projects/wasl-baniyas-blind/artifacts/*.json
+            /tmp/OpenMontage/projects/wasl-baniyas-blind/artifacts/qc/*.jpg
+            /tmp/OpenMontage/projects/wasl-baniyas-blind/BLIND_INPUT.md
+          retention-days: 5
