@@ -1,0 +1,37 @@
+{
+  "version":"1.0",
+  "project_id":"wasl-baniyas-full-pipeline",
+  "decisions":[
+    {
+      "decision_id":"d-001",
+      "stage":"idea",
+      "category":"render_runtime_selection",
+      "subject":"Composition runtime for source-led football recap",
+      "options_considered":[
+        {"option_id":"remotion","label":"Remotion","score":0.94,"reason":"Best fit for real match footage as anchor plus React-native data overlays and one-pass composition."},
+        {"option_id":"hyperframes","label":"HyperFrames","score":0.72,"reason":"Strong for HTML/GSAP kinetic typography, but less natural here because source footage is primary.","rejected_because":"The match footage, not kinetic HTML graphics, is the primary medium."}
+      ],
+      "selected":"remotion",
+      "reason":"User approved Remotion after both supported runtimes were presented.",
+      "user_visible":true,
+      "user_approved":true,
+      "confidence":0.98
+    },
+    {
+      "decision_id":"d-002",
+      "stage":"idea",
+      "category":"concept_selection",
+      "subject":"Creative direction",
+      "options_considered":[
+        {"option_id":"match-pulse","label":"Match Pulse","score":0.95,"reason":"Keeps goals primary while using motion graphics as rhythmic support."},
+        {"option_id":"tactical-data","label":"Tactical Data Broadcast","score":0.84,"reason":"Strong analytical framing but risks making the data heavier than the match footage."},
+        {"option_id":"night-cinema","label":"Night Match Cinema","score":0.81,"reason":"Cinematic atmosphere but would reduce the density of useful match statistics."}
+      ],
+      "selected":"match-pulse",
+      "reason":"User approved Match Pulse as the best balance of highlights, data motion and premium broadcast feel.",
+      "user_visible":true,
+      "user_approved":true,
+      "confidence":0.96
+    }
+  ]
+}
