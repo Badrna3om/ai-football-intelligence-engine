@@ -1,0 +1,100 @@
+{
+  "project_id": "wasl-baniyas-test",
+  "game_id": 4851245,
+  "provider": "365scores_unofficial",
+  "competition": {
+    "id": 549,
+    "name": "UAE Pro League",
+    "name_ar": "دوري أدنوك للمحترفين",
+    "round": 6,
+    "season_num": 144
+  },
+  "match": {
+    "kickoff": "2026-10-16T19:45:00+04:00",
+    "venue": "Baniyas Stadium",
+    "home": {"id": 8345, "name": "Baniyas", "name_ar": "بني ياس", "score": 0},
+    "away": {"id": 8346, "name": "Al Wasl", "name_ar": "الوصل", "score": 2},
+    "final_score_ar": "بني ياس 0 - 2 الوصل"
+  },
+  "goals": [
+    {
+      "ordinal": 1,
+      "minute": 11,
+      "team": "Al Wasl",
+      "team_ar": "الوصل",
+      "scorer": "Mehdi Taremi",
+      "scorer_ar": "مهدي طارمي",
+      "player_id": 621187,
+      "assist": "Nicolas Gimenez",
+      "assist_ar": "نيكولاس خيمينيز",
+      "assist_player_id": 424437,
+      "expected_video_file": "assets/video/goal_01.mp4"
+    },
+    {
+      "ordinal": 2,
+      "minute": 45,
+      "added_time": 1,
+      "display_minute": "45+1",
+      "team": "Al Wasl",
+      "team_ar": "الوصل",
+      "scorer": "Cameron Puertas",
+      "scorer_ar": "كاميرون بويرتاس",
+      "player_id": 49633044,
+      "expected_video_file": "assets/video/goal_02.mp4"
+    }
+  ],
+  "team_stats": {
+    "baniyas": {
+      "possession_pct": 46,
+      "xg": 1.57,
+      "xgot": 0.16,
+      "shots": 19,
+      "shots_on_target": 4,
+      "big_chances": 1,
+      "corners": 6,
+      "passes_completed": 291,
+      "passes_total": 360
+    },
+    "al_wasl": {
+      "possession_pct": 54,
+      "xg": 2.57,
+      "xgot": 2.21,
+      "shots": 13,
+      "shots_on_target": 6,
+      "big_chances": 2,
+      "corners": 9,
+      "passes_completed": 385,
+      "passes_total": 448
+    }
+  },
+  "man_of_the_match": {
+    "player_id": 49633044,
+    "name": "Cameron Puertas",
+    "name_ar": "كاميرون بويرتاس",
+    "team": "Al Wasl",
+    "team_ar": "الوصل",
+    "rating": 8.3,
+    "goals": 1,
+    "shots": 1,
+    "shots_on_target": 1,
+    "key_passes": 2,
+    "passes_completed": 55,
+    "passes_total": 62,
+    "pass_accuracy_pct": 89,
+    "touches": 76,
+    "xg": 0.07,
+    "xgot": 0.74,
+    "drive_cutout_file_id": "18cdeC7ef4bRdXApG_izoDxULGu3aC1hO",
+    "drive_cutout_file_name": "player_907_player_cutout_365_80960.png"
+  },
+  "production_notes": {
+    "language": "ar",
+    "aspect_ratio": "9:16",
+    "resolution": "1080x1920",
+    "preferred_pipeline": "hybrid",
+    "preferred_runtime": "remotion",
+    "composition_mode": "atelier",
+    "do_not_invent_stats": true,
+    "goal_video_status": "pending_user_delivery"
+  }
+}
