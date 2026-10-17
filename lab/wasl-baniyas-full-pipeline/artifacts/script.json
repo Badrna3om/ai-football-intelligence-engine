@@ -1,0 +1,83 @@
+{
+  "version":"1.0",
+  "title":"TACTIC SPORT — بني ياس 0-2 الوصل — Match Pulse",
+  "total_duration_seconds":50,
+  "sections":[
+    {
+      "id":"s01",
+      "label":"Opening pulse",
+      "text":"بني ياس × الوصل — الجولة السادسة — النتيجة النهائية 0-2",
+      "start_seconds":0,
+      "end_seconds":3.5,
+      "speaker_directions":"No narration. Music-led opening with a short branded impact and crowd atmosphere.",
+      "enhancement_cues":[{"type":"animation","description":"Fast TACTIC sting, team marks and score build in around the first match beat.","timestamp_seconds":0.3}],
+      "source_ref":"lab/wasl-baniyas-blind/BLIND_INPUT.md"
+    },
+    {
+      "id":"s02",
+      "label":"Goal 1 — Taremi",
+      "text":"11' — مهدي طارمي — صناعة نيكولاس خيمينيز",
+      "start_seconds":3.5,
+      "end_seconds":14,
+      "speaker_directions":"Use source commentary and crowd audio; no rewritten narration.",
+      "enhancement_cues":[{"type":"overlay","description":"Compact goal identifier enters after the decisive action without covering the ball, scorer or celebration.","timestamp_seconds":8.5}],
+      "source_ref":"lab/wasl-baniyas-blind/BLIND_INPUT.md"
+    },
+    {
+      "id":"s03",
+      "label":"Goal 2 — Puertas",
+      "text":"45+1' — كاميرون بويرتاس — الوصل يضاعف النتيجة",
+      "start_seconds":14,
+      "end_seconds":24.5,
+      "speaker_directions":"Use source commentary and crowd audio; no rewritten narration.",
+      "enhancement_cues":[{"type":"overlay","description":"Second goal pulse uses a different entrance rhythm from goal one; score advances to 0-2.","timestamp_seconds":19}],
+      "source_ref":"lab/wasl-baniyas-blind/BLIND_INPUT.md"
+    },
+    {
+      "id":"s04",
+      "label":"Match data pulse",
+      "text":"الاستحواذ 46%-54%، xG 1.57-2.57، التسديدات 19-13، على المرمى 4-6، الفرص الكبيرة 1-2، الركنيات 6-9.",
+      "start_seconds":24.5,
+      "end_seconds":39.5,
+      "speaker_directions":"No narration. Let music, sound design and animated numbers carry the sequence.",
+      "enhancement_cues":[
+        {"type":"animation","description":"Possession split grows to 46/54 instead of appearing fully formed.","timestamp_seconds":25},
+        {"type":"animation","description":"xG values count upward with a comparative meter.","timestamp_seconds":27.5},
+        {"type":"animation","description":"Shots become moving attempts/trails rather than a static card.","timestamp_seconds":30},
+        {"type":"animation","description":"Shots on target resolve as target/goal dots.","timestamp_seconds":32.5},
+        {"type":"animation","description":"Big chances pulse in a penalty-area motif.","timestamp_seconds":35},
+        {"type":"animation","description":"Corners close the stat run with corner-arc motion.","timestamp_seconds":37.3}
+      ],
+      "source_ref":"lab/wasl-baniyas-blind/BLIND_INPUT.md"
+    },
+    {
+      "id":"s05",
+      "label":"Player of the match",
+      "text":"نجم المباراة — كاميرون بويرتاس — تقييم 8.3 — هدف — تمريرتان مفتاحيتان — 55 من 62 تمريرة — دقة 89% — 76 لمسة — xG 0.07 — xGOT 0.74",
+      "start_seconds":39.5,
+      "end_seconds":47,
+      "speaker_directions":"No narration. Heroic music lift with concise impact hits as supporting stats appear around the player.",
+      "enhancement_cues":[{"type":"animation","description":"Player cutout reveals as hero layer with parallax/light movement; supporting stats stagger around him, not as identical boxes.","timestamp_seconds":40}],
+      "source_ref":"lab/wasl-baniyas-blind/BLIND_INPUT.md"
+    },
+    {
+      "id":"s06",
+      "label":"Branded close",
+      "text":"بني ياس 0 - 2 الوصل — TACTIC SPORT",
+      "start_seconds":47,
+      "end_seconds":50,
+      "speaker_directions":"Music resolves into a concise TACTIC sting.",
+      "enhancement_cues":[{"type":"animation","description":"Score and TACTIC identity close decisively with no extra card clutter.","timestamp_seconds":47.2}],
+      "source_ref":"lab/wasl-baniyas-blind/BLIND_INPUT.md"
+    }
+  ],
+  "metadata":{
+    "anchor_sections":["s02","s03"],
+    "support_sections":["s01","s04","s05","s06"],
+    "narration_sections":[],
+    "required_support_assets":["team logos","TACTIC logo","Cameron Puertas cutout","Thmanyah font","music bed"],
+    "source_audio_policy":"Preserve original goal/commentary audio and duck music underneath source-led goal beats.",
+    "render_runtime":"remotion",
+    "concept":"Match Pulse"
+  }
+}
