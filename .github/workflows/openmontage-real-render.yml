@@ -1,0 +1,153 @@
+name: OpenMontage Real Render — Wasl Baniyas
+
+on:
+  push:
+    branches: [openmontage-lab]
+    paths:
+      - '.github/workflows/openmontage-real-render.yml'
+      - 'lab/wasl-baniyas-test/atelier/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: System prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg unzip
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install OpenMontage
+        run: |
+          set -euo pipefail
+          git clone --depth 1 https://github.com/calesthio/OpenMontage.git /tmp/OpenMontage
+          cd /tmp/OpenMontage
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          cd remotion-composer
+          npm install
+
+      - name: Seed project, footage, logos, Thmanyah and music
+        run: |
+          set -euo pipefail
+          OM=/tmp/OpenMontage
+          P=$OM/projects/wasl-baniyas-test
+          mkdir -p "$P/public" "$P/artifacts" "$P/renders" "$P/assets/fonts"
+          cp lab/wasl-baniyas-test/atelier/index.tsx "$P/index.tsx"
+          cp lab/wasl-baniyas-test/atelier/Root.tsx "$P/Root.tsx"
+          cp lab/wasl-baniyas-test/atelier/Composition.tsx "$P/Composition.tsx"
+          cp lab/wasl-baniyas-test/atelier/art-direction.md "$P/art-direction.md"
+          cp lab/wasl-baniyas-test/tactic_match.json "$P/artifacts/tactic_match.json"
+          cp lab/wasl-baniyas-test/PRODUCTION_BRIEF.md "$P/PRODUCTION_BRIEF.md"
+          cp lab/wasl-baniyas-test/OPENMONTAGE_AGENT_PROMPT.md "$P/OPENMONTAGE_AGENT_PROMPT.md"
+
+          curl -fL --retry 3 'https://sdmntpraustraliaeast.oaiusercontent.com/files/00000000-4900-81fa-918b-a2ea14512c93/raw?se=2026-10-17T14%3A22%3A41Z&sp=r&sv=2026-02-06&sr=b&scid=3743fd0a-c469-5097-8cea-6300df21663b&skoid=cb94e22a-e3df-4e6a-9e17-1696f40fa435&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-10-17T01%3A51%3A36Z&ske=2026-10-18T01%3A51%3A36Z&sks=b&skv=2026-02-06&sig=jNrtAkNFQN2%2BBRTyFjw932ZJGIw8AwxOrMoBNiLSkes%3D' -o "$P/public/goal_01.mp4"
+          curl -fL --retry 3 'https://sdmntpraustraliaeast.oaiusercontent.com/files/00000000-699c-81fa-9ce4-d1578636f00e/raw?se=2026-10-17T14%3A23%3A04Z&sp=r&sv=2026-02-06&sr=b&scid=88ae2a36-1424-5f5e-92d2-ec786cc446a5&skoid=cb94e22a-e3df-4e6a-9e17-1696f40fa435&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-10-17T06%3A06%3A33Z&ske=2026-10-18T06%3A06%3A33Z&sks=b&skv=2026-02-06&sig=TWoGrmi3Fbe7HHB5BtARst6keFKAfi6pvrLlQPgSZB4%3D' -o "$P/public/goal_02.mp4"
+          curl -fL --retry 3 'https://sdmntpraustraliaeast.oaiusercontent.com/files/00000000-32f0-81fa-9275-68f9fa682ef8/raw?se=2026-10-17T14%3A23%3A11Z&sp=r&sv=2026-02-06&sr=b&scid=537d3b73-88aa-5e20-8653-98b2e76ea78a&skoid=cb94e22a-e3df-4e6a-9e17-1696f40fa435&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-10-17T13%3A24%3A19Z&ske=2026-10-18T13%3A24%3A19Z&sks=b&skv=2026-02-06&sig=mlAR7/KEjHfhnNc97qgXeeZoLLIz/QpqO9Jrz/aX6JI%3D' -o "$P/public/baniyas_logo.png"
+          curl -fL --retry 3 'https://sdmntprwestus2.oaiusercontent.com/files/00000000-c1b4-81f8-ab7c-24fb199fc91e/raw?se=2026-10-17T14%3A23%3A19Z&sp=r&sv=2026-02-06&sr=b&scid=ee380041-1e3a-54d9-95db-07cd45c0524d&skoid=cb94e22a-e3df-4e6a-9e17-1696f40fa435&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-10-17T12%3A57%3A44Z&ske=2026-10-18T12%3A57%3A44Z&sks=b&skv=2026-02-06&sig=86a8MnKnWJ6tC2d6lDqcVN9pOoffggZ3CAmuaOjP9OI%3D' -o "$P/public/wasl_logo.png"
+          curl -fL --retry 3 'https://sdmntpraustraliaeast.oaiusercontent.com/files/00000000-5fd0-81fa-8847-1f6e7d447e46/raw?se=2026-10-17T14%3A23%3A25Z&sp=r&sv=2026-02-06&sr=b&scid=a62d7529-6f6e-5c8e-a641-a55abde85fb7&skoid=cb94e22a-e3df-4e6a-9e17-1696f40fa435&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-10-17T04%3A34%3A38Z&ske=2026-10-18T04%3A34%3A38Z&sks=b&skv=2026-02-06&sig=mOz%2ByfjbZvevagdNCvdQoa8kfVlefgon2THpe0QPLbI%3D' -o "$P/public/tactic_logo.png"
+          curl -fL --retry 3 'https://sdmntpraustraliaeast.oaiusercontent.com/files/00000000-4308-81fa-a1ab-a27d1cfa2563/raw?se=2026-10-17T14%3A26%3A00Z&sp=r&sv=2026-02-06&sr=b&scid=f5357165-4529-5b1a-b6ec-3bd58c907b95&skoid=cb94e22a-e3df-4e6a-9e17-1696f40fa435&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-10-17T01%3A15%3A35Z&ske=2026-10-18T01%3A15%3A35Z&sks=b&skv=2026-02-06&sig=6P7Y5UbKSuooZCCWjxawW23WkrqG%2BQw1wCAQBzLXEIY%3D' -o "$P/public/cameron_puertas_cutout.png"
+
+          curl -fL --retry 3 'https://public-assets.thmanyah.com/font/Thmanyah-Font-Family.zip' -o /tmp/thmanyah.zip
+          unzip -q /tmp/thmanyah.zip -d "$P/assets/fonts"
+          FONT=$(find "$P/assets/fonts" -type f -iname '*Sans*Bold*.otf' ! -name '._*' | head -1)
+          test -n "$FONT"
+          cp "$FONT" "$P/public/thmanyah-bold.otf"
+
+          python - <<'PY'
+          import math, wave, struct, random
+          sr=48000; dur=50; bpm=128; n=sr*dur; beat=60/bpm
+          rnd=random.Random(77)
+          with wave.open('/tmp/OpenMontage/projects/wasl-baniyas-test/public/music.wav','wb') as w:
+              w.setnchannels(2); w.setsampwidth(2); w.setframerate(sr)
+              for i in range(n):
+                  t=i/sr; phase=(t%beat)/beat
+                  kick=math.sin(2*math.pi*(72-28*min(phase,.22)/.22)*t)*math.exp(-phase*18) if phase<.24 else 0
+                  bass=math.sin(2*math.pi*[55,65.4,73.4,49][int(t/(beat*4))%4]*t)*0.22
+                  hat=(rnd.random()*2-1)*math.exp(-(phase*2%1)*45)*0.04
+                  pad=(math.sin(2*math.pi*110*t)+.6*math.sin(2*math.pi*165*t))*0.035
+                  v=max(-.9,min(.9,.34*kick+bass+hat+pad))
+                  s=int(v*32767)
+                  w.writeframesraw(struct.pack('<hh',s,s))
+          PY
+
+          echo '{}' > "$P/artifacts/props.json"
+          cat > "$P/artifacts/edit_decisions.json" <<JSON
+          {
+            "version":"1.0",
+            "cuts":[],
+            "renderer_family":"cinematic-trailer",
+            "render_runtime":"remotion",
+            "composition_mode":"atelier",
+            "bespoke":{
+              "entry":"$P/index.tsx",
+              "composition_id":"TacticWaslBaniyas",
+              "props_path":"$P/artifacts/props.json",
+              "public_dir":"$P/public",
+              "art_direction":"$P/art-direction.md",
+              "scale":1.0,
+              "crf":18,
+              "concurrency":4
+            },
+            "metadata":{"proposal_render_runtime":"remotion","pipeline":"hybrid","brand":"TACTIC SPORT"}
+          }
+          JSON
+
+      - name: Render through OpenMontage video_compose
+        run: |
+          set -euo pipefail
+          cd /tmp/OpenMontage
+          python - <<'PY'
+          import json, sys
+          from pathlib import Path
+          from tools.video.video_compose import VideoCompose
+          P=Path('/tmp/OpenMontage/projects/wasl-baniyas-test')
+          edit=json.loads((P/'artifacts/edit_decisions.json').read_text())
+          result=VideoCompose().execute({
+              'operation':'render',
+              'output_path':str(P/'renders/final.mp4'),
+              'edit_decisions':edit,
+              'remotion_timeout_ms':180000,
+          })
+          print('success=', result.success)
+          print('error=', result.error)
+          print('data=', getattr(result,'data',None))
+          if not result.success:
+              sys.exit(1)
+          PY
+
+      - name: OpenMontage delivery checks and contact sheet
+        run: |
+          set -euo pipefail
+          P=/tmp/OpenMontage/projects/wasl-baniyas-test
+          test -s "$P/renders/final.mp4"
+          ffprobe -v error -show_entries format=duration,size -show_entries stream=codec_name,width,height,r_frame_rate -of json "$P/renders/final.mp4" | tee "$P/artifacts/final_ffprobe.json"
+          mkdir -p "$P/artifacts/qc"
+          for T in 1 5 14 25 30 34 38 42 47 49; do ffmpeg -y -loglevel error -ss "$T" -i "$P/renders/final.mp4" -frames:v 1 -vf scale=270:480 "$P/artifacts/qc/${T}.jpg"; done
+          ffmpeg -y -loglevel error -pattern_type glob -i "$P/artifacts/qc/*.jpg" -filter_complex 'tile=5x2' -frames:v 1 "$P/artifacts/contact-sheet.jpg"
+
+      - name: Upload real OpenMontage render
+        uses: actions/upload-artifact@v4
+        with:
+          name: wasl-baniyas-openmontage-real-render
+          path: |
+            /tmp/OpenMontage/projects/wasl-baniyas-test/renders/final.mp4
+            /tmp/OpenMontage/projects/wasl-baniyas-test/artifacts/final_ffprobe.json
+            /tmp/OpenMontage/projects/wasl-baniyas-test/artifacts/contact-sheet.jpg
+            /tmp/OpenMontage/projects/wasl-baniyas-test/artifacts/edit_decisions.json
+            /tmp/OpenMontage/projects/wasl-baniyas-test/art-direction.md
+          retention-days: 5
