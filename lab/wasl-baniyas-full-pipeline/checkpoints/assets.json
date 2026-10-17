@@ -1,0 +1,36 @@
+{
+  "version": "1.0",
+  "project_id": "wasl-baniyas-full-pipeline",
+  "pipeline_type": "hybrid",
+  "stage": "assets",
+  "status": "awaiting_human",
+  "timestamp": "2026-10-17T23:20:00+04:00",
+  "style_playbook": "custom-match-pulse",
+  "checkpoint_policy": "guided",
+  "human_approval_required": true,
+  "human_approved": false,
+  "artifacts": {
+    "asset_manifest": "lab/wasl-baniyas-full-pipeline/artifacts/asset_manifest.json"
+  },
+  "review": {
+    "passed": true,
+    "findings": [
+      "Anchor goal footage remains primary and is not replaced by generated imagery.",
+      "No narration/TTS is required; native commentary is preserved.",
+      "Support kit is limited to typography, overlays, stat-motion specifications and music.",
+      "Cameron Puertas image requires a visual cutout/background quality check before compose.",
+      "Thmanyah is mandatory for Arabic text."
+    ]
+  },
+  "cost_snapshot": {
+    "total_spent_usd": 0,
+    "total_reserved_usd": 0,
+    "budget_remaining_usd": 2
+  },
+  "metadata": {
+    "render_runtime": "remotion",
+    "concept": "Match Pulse",
+    "expensive_generation_samples_required": false,
+    "reason_no_generation_sample": "No TTS, AI image or AI video inserts are planned; supplied footage and supplied graphics remain the visual truth."
+  }
+}
