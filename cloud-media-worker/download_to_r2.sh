@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-DOWNLOAD_URL="${DOWNLOAD_URL:?missing DOWNLOAD_URL}"
+SOURCE_URL="${SOURCE_URL:-${DOWNLOAD_URL:-}}"
+: "${SOURCE_URL:?missing SOURCE_URL}"
 REQUEST_ID="${REQUEST_ID:?missing REQUEST_ID}"
 FILE_NAME="${FILE_NAME:-${REQUEST_ID}.mp4}"
 OBJECT_KEY="${OBJECT_KEY:-raw/${REQUEST_ID}/${FILE_NAME}}"
@@ -14,9 +15,24 @@ OBJECT_KEY="${OBJECT_KEY:-raw/${REQUEST_ID}/${FILE_NAME}}"
 mkdir -p work
 OUT="work/${FILE_NAME}"
 
-curl -fL --retry 3 --retry-delay 2 --connect-timeout 30 --max-time 900 \
-  -A 'Mozilla/5.0 TACTIC-Cloud-Media-Worker/1.2' \
-  "$DOWNLOAD_URL" -o "$OUT"
+# X/Twitter is resolved and downloaded in the cloud. No FastSaver dependency.
+yt-dlp \
+  --no-playlist \
+  --no-warnings \
+  --socket-timeout 30 \
+  --retries 3 \
+  --fragment-retries 3 \
+  --referer 'https://x.com/' \
+  --user-agent 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/152.0.0.0 Safari/537.36' \
+  --merge-output-format mp4 \
+  -f 'bv*+ba/b[ext=mp4]/b' \
+  -o "$OUT" \
+  "$SOURCE_URL"
+
+if [ ! -s "$OUT" ]; then
+  echo "yt-dlp returned no media" >&2
+  exit 20
+fi
 
 SIZE_BYTES=$(stat -c%s "$OUT")
 if [ "$SIZE_BYTES" -lt 1024 ]; then
@@ -41,21 +57,14 @@ aws s3 cp "$OUT" "s3://${R2_BUCKET}/${OBJECT_KEY}" \
   --content-type "${MIME_TYPE:-video/mp4}" \
   --only-show-errors
 
-STORAGE_URL=""
 PUBLIC_BASE="${R2_PUBLIC_URL:-${R2_PUBLIC_BASE_URL:-}}"
-
 if [ -n "$PUBLIC_BASE" ]; then
   STORAGE_URL="${PUBLIC_BASE%/}/${OBJECT_KEY}"
 else
-  STORAGE_URL=$(aws s3 presign "s3://${R2_BUCKET}/${OBJECT_KEY}" \
-    --endpoint-url "$R2_ENDPOINT" \
-    --expires-in 604800)
+  STORAGE_URL=$(aws s3 presign "s3://${R2_BUCKET}/${OBJECT_KEY}" --endpoint-url "$R2_ENDPOINT" --expires-in 604800)
 fi
 
-if [ -z "$STORAGE_URL" ]; then
-  echo "Unable to create R2 access URL" >&2
-  exit 22
-fi
+[ -n "$STORAGE_URL" ] || { echo "Unable to create R2 access URL" >&2; exit 22; }
 
 jq -n \
   --arg request_id "$REQUEST_ID" \
@@ -70,22 +79,6 @@ jq -n \
   --arg audio_codec "${AUDIO_CODEC:-}" \
   --arg sha256 "$SHA256" \
   --argjson size_bytes "$SIZE_BYTES" \
-  '{
-    request_id:$request_id,
-    status:"ready",
-    storage_provider:"cloudflare_r2",
-    bucket:env.R2_BUCKET,
-    object_key:$object_key,
-    file_name:$file_name,
-    storage_url:$storage_url,
-    mime_type:$mime_type,
-    size_bytes:$size_bytes,
-    duration:(if $duration=="" then null else ($duration|tonumber) end),
-    width:(if $width=="" then null else ($width|tonumber) end),
-    height:(if $height=="" then null else ($height|tonumber) end),
-    video_codec:(if $video_codec=="" then null else $video_codec end),
-    audio_codec:(if $audio_codec=="" then null else $audio_codec end),
-    sha256:$sha256
-  }' > work/result.json
+  '{request_id:$request_id,status:"ready",storage_provider:"cloudflare_r2",bucket:env.R2_BUCKET,object_key:$object_key,file_name:$file_name,storage_url:$storage_url,mime_type:$mime_type,size_bytes:$size_bytes,duration:(if $duration=="" then null else ($duration|tonumber) end),width:(if $width=="" then null else ($width|tonumber) end),height:(if $height=="" then null else ($height|tonumber) end),video_codec:(if $video_codec=="" then null else $video_codec end),audio_codec:(if $audio_codec=="" then null else $audio_codec end),sha256:$sha256}' > work/result.json
 
 cat work/result.json
