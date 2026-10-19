@@ -15,7 +15,7 @@ mkdir -p work
 OUT="work/${FILE_NAME}"
 
 curl -fL --retry 3 --retry-delay 2 --connect-timeout 30 --max-time 900 \
-  -A 'Mozilla/5.0 TACTIC-Cloud-Media-Worker/1.0' \
+  -A 'Mozilla/5.0 TACTIC-Cloud-Media-Worker/1.1' \
   "$DOWNLOAD_URL" -o "$OUT"
 
 SIZE_BYTES=$(stat -c%s "$OUT")
@@ -41,16 +41,25 @@ aws s3 cp "$OUT" "s3://${R2_BUCKET}/${OBJECT_KEY}" \
   --content-type "${MIME_TYPE:-video/mp4}" \
   --only-show-errors
 
-PUBLIC_URL=""
+STORAGE_URL=""
 if [ -n "${R2_PUBLIC_BASE_URL:-}" ]; then
-  PUBLIC_URL="${R2_PUBLIC_BASE_URL%/}/${OBJECT_KEY}"
+  STORAGE_URL="${R2_PUBLIC_BASE_URL%/}/${OBJECT_KEY}"
+else
+  STORAGE_URL=$(aws s3 presign "s3://${R2_BUCKET}/${OBJECT_KEY}" \
+    --endpoint-url "$R2_ENDPOINT" \
+    --expires-in 604800)
+fi
+
+if [ -z "$STORAGE_URL" ]; then
+  echo "Unable to create R2 access URL" >&2
+  exit 22
 fi
 
 jq -n \
   --arg request_id "$REQUEST_ID" \
   --arg object_key "$OBJECT_KEY" \
   --arg file_name "$FILE_NAME" \
-  --arg public_url "$PUBLIC_URL" \
+  --arg storage_url "$STORAGE_URL" \
   --arg mime_type "${MIME_TYPE:-video/mp4}" \
   --arg duration "${DURATION:-}" \
   --arg width "${WIDTH:-}" \
@@ -66,7 +75,7 @@ jq -n \
     bucket:env.R2_BUCKET,
     object_key:$object_key,
     file_name:$file_name,
-    storage_url:$public_url,
+    storage_url:$storage_url,
     mime_type:$mime_type,
     size_bytes:$size_bytes,
     duration:(if $duration=="" then null else ($duration|tonumber) end),
