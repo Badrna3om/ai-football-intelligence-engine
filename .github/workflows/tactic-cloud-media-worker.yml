@@ -1,0 +1,73 @@
+name: TACTIC Cloud Media Worker
+
+on:
+  repository_dispatch:
+    types: [tactic-cloud-video-download]
+
+permissions:
+  contents: read
+
+jobs:
+  download-upload-callback:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DOWNLOAD_URL: ${{ github.event.client_payload.download_url }}
+      REQUEST_ID: ${{ github.event.client_payload.request_id }}
+      FILE_NAME: ${{ github.event.client_payload.file_name }}
+      OBJECT_KEY: ${{ github.event.client_payload.object_key }}
+      CALLBACK_URL: ${{ github.event.client_payload.callback_url }}
+      R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+      R2_BUCKET: ${{ secrets.R2_BUCKET }}
+      R2_PUBLIC_BASE_URL: ${{ secrets.R2_PUBLIC_BASE_URL }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      CALLBACK_SECRET: ${{ secrets.TACTIC_N8N_CALLBACK_SECRET }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install tools
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y ffmpeg jq file awscli
+
+      - name: Download and upload to R2
+        id: media
+        run: |
+          chmod +x cloud-media-worker/download_to_r2.sh
+          cloud-media-worker/download_to_r2.sh
+
+      - name: Build callback payload
+        if: success()
+        env:
+          ORIGINAL_META: ${{ toJson(github.event.client_payload.meta) }}
+        run: |
+          printf '%s' "$ORIGINAL_META" > work/meta.json
+          jq -s '.[0] + {meta: .[1]}' work/result.json work/meta.json > work/callback.json
+          cat work/callback.json
+
+      - name: Callback n8n success
+        if: success()
+        run: |
+          test -n "$CALLBACK_URL"
+          curl -fL --retry 5 --retry-delay 3 \
+            -H 'Content-Type: application/json' \
+            -H "X-Tactic-Callback-Secret: ${CALLBACK_SECRET}" \
+            --data-binary @work/callback.json \
+            "$CALLBACK_URL"
+
+      - name: Callback n8n failure
+        if: failure() && env.CALLBACK_URL != ''
+        env:
+          ORIGINAL_META: ${{ toJson(github.event.client_payload.meta) }}
+        run: |
+          jq -n \
+            --arg request_id "$REQUEST_ID" \
+            --argjson meta "$ORIGINAL_META" \
+            '{request_id:$request_id,status:"failed",error:"cloud_media_worker_failed",meta:$meta}' > /tmp/failure.json
+          curl -sS -L --retry 3 --retry-delay 3 \
+            -H 'Content-Type: application/json' \
+            -H "X-Tactic-Callback-Secret: ${CALLBACK_SECRET}" \
+            --data-binary @/tmp/failure.json \
+            "$CALLBACK_URL" || true
