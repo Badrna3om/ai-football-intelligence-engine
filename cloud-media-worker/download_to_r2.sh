@@ -15,7 +15,7 @@ mkdir -p work
 OUT="work/${FILE_NAME}"
 
 curl -fL --retry 3 --retry-delay 2 --connect-timeout 30 --max-time 900 \
-  -A 'Mozilla/5.0 TACTIC-Cloud-Media-Worker/1.1' \
+  -A 'Mozilla/5.0 TACTIC-Cloud-Media-Worker/1.2' \
   "$DOWNLOAD_URL" -o "$OUT"
 
 SIZE_BYTES=$(stat -c%s "$OUT")
@@ -42,8 +42,10 @@ aws s3 cp "$OUT" "s3://${R2_BUCKET}/${OBJECT_KEY}" \
   --only-show-errors
 
 STORAGE_URL=""
-if [ -n "${R2_PUBLIC_BASE_URL:-}" ]; then
-  STORAGE_URL="${R2_PUBLIC_BASE_URL%/}/${OBJECT_KEY}"
+PUBLIC_BASE="${R2_PUBLIC_URL:-${R2_PUBLIC_BASE_URL:-}}"
+
+if [ -n "$PUBLIC_BASE" ]; then
+  STORAGE_URL="${PUBLIC_BASE%/}/${OBJECT_KEY}"
 else
   STORAGE_URL=$(aws s3 presign "s3://${R2_BUCKET}/${OBJECT_KEY}" \
     --endpoint-url "$R2_ENDPOINT" \
