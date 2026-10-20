@@ -24,6 +24,8 @@ RUN mkdir -p /app/public/assets/templates /tmp/tactic-templates \
    -f lavfi -i "color=c=black@0.0:s=900x220:d=1" \
    -vf "format=rgba,drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:text='TACTIC':fontcolor=white:fontsize=96:x=42:y=(h-text_h)/2,drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:text='SPORT':fontcolor=0x22D4FFFF:fontsize=96:x=410:y=(h-text_h)/2" \
    -frames:v 1 /app/public/TACTIC_SPORT_logo.png \
- && test -s /app/public/TACTIC_SPORT_logo.png
+ && test -s /app/public/TACTIC_SPORT_logo.png \
+ && cp /app/public/TACTIC_SPORT_logo.png /app/public/TACTIC_SPORT_logo_transparent.png \
+ && test -s /app/public/TACTIC_SPORT_logo_transparent.png
 EXPOSE 80
 CMD ["npm","start"]
