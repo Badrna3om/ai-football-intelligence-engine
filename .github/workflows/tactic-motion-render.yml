@@ -57,7 +57,7 @@ jobs:
           curl -fLsS --retry 4 --retry-delay 2 \
             https://personal-tactic-motion.8kospi.easypanel.host/assets/MATCH_PRESENTATION_V1_LOCKED.tsx \
             -o motion-renderer/remotion/master-v1/MatchPresentationV1.tsx
-          echo "28a41ed58cea5b16ce18cbc8d2c5cc46d8f2eba2d9881e876807c1fbe2c5fc06  motion-renderer/remotion/master-v1/TacticMasterV1.tsx" | sha256sum -c -
+          echo "17da210fbf594ba8b503bf83920776cf71d85fd5bbefdc251a8a96fb961cfe14  motion-renderer/remotion/master-v1/TacticMasterV1.tsx" | sha256sum -c -
           echo "d07e47751299669dd353d734fe60b2fa6646bd22423053c3b86234533e7e427c  motion-renderer/remotion/master-v1/MatchPresentationV1.tsx" | sha256sum -c -
           node - <<'NODE'
           const fs=require('fs');
