@@ -168,10 +168,11 @@ const GoalScene:React.FC<{p:SnapAmerGoalReelProps;g:any;i:number}> = ({p,g,i}) =
   const minute=g.displayMinute || `${g.minute}'`;
   const badge=g.teamBadgeUrl || (g.teamSide==="away"?p.awayBadgeUrl:p.homeBadgeUrl);
   const startFrom=Math.max(0,Math.round((g.videoStartSeconds||0)*FPS));
+  const videoSrc=g.videoUrl.startsWith("/") ? staticFile(g.videoUrl.slice(1)) : g.videoUrl;
   return <AbsoluteFill style={{background:"#020304",fontFamily:font,color:WHITE,direction:"rtl",overflow:"hidden"}}>
-    <Video src={g.videoUrl} startFrom={startFrom} volume={0} style={{position:"absolute",inset:-80,width:"calc(100% + 160px)",height:"calc(100% + 160px)",objectFit:"cover",filter:"blur(28px) brightness(.36) saturate(.75)",transform:"scale(1.08)"}}/>
+    <Video src={videoSrc} startFrom={startFrom} volume={0} style={{position:"absolute",inset:-80,width:"calc(100% + 160px)",height:"calc(100% + 160px)",objectFit:"cover",filter:"blur(28px) brightness(.36) saturate(.75)",transform:"scale(1.08)"}}/>
     <div style={{position:"absolute",top:30,left:0,right:0,zIndex:4}}><Brand p={p} small/></div>
-    <Video src={g.videoUrl} startFrom={startFrom} volume={1} style={{position:"absolute",top:350,left:0,width:"100%",height:610,objectFit:"cover",zIndex:2}}/>
+    <Video src={videoSrc} startFrom={startFrom} volume={1} style={{position:"absolute",top:350,left:0,width:"100%",height:610,objectFit:"cover",zIndex:2}}/>
     <div style={{position:"absolute",left:0,right:0,bottom:0,height:690,background:PANEL,zIndex:3,borderTop:"1px solid rgba(255,255,255,.08)"}}>
       <div style={{position:"absolute",top:118,left:52,right:52,height:3,background:"linear-gradient(90deg,#7442C8,#A45FF0)"}}/>
       <div style={{position:"absolute",top:165,left:52,right:52,display:"grid",gridTemplateColumns:"250px 1fr",gap:42,alignItems:"center"}}>
