@@ -1,0 +1,112 @@
+name: TACTIC Goal Reel Render
+run-name: TACTIC Goal Reel ${{ github.event.client_payload.request_id || github.run_id }}
+
+on:
+  repository_dispatch:
+    types:
+      - tactic-goal-reel-render
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tactic-goal-reel-${{ github.event.client_payload.request_id || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -e '.client_payload.render_payload | type == "object"' "$GITHUB_EVENT_PATH" >/dev/null
+          jq '.client_payload.render_payload' "$GITHUB_EVENT_PATH" > render-payload.json
+          jq -e '.gameId and (.goals | type == "array") and (.goals | length > 0)' render-payload.json >/dev/null
+          jq -e '[.goals[] | select(.videoUrl != null and .videoUrl != "")] | length == (.goals | length)' render-payload.json >/dev/null
+          game_id="$(jq -r '.gameId' render-payload.json)"
+          echo "game_id=${game_id}" >> "$GITHUB_ENV"
+
+      - name: Validate goal video URLs
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -r '.goals[].videoUrl' render-payload.json | while read -r url; do
+            curl -fLsS --retry 4 --retry-delay 2 --range 0-0 -o /dev/null "$url"
+          done
+
+      - name: Install renderer dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ffmpeg
+          cd motion-renderer
+          npm install --no-audit --no-fund
+
+      - name: Render Goal Reel
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p rendered
+          cd motion-renderer
+          npx remotion render remotion/index.ts TacticGoalReel ../rendered/goal-reel.mp4 \
+            --props=../render-payload.json \
+            --codec=h264 \
+            --concurrency=2 \
+            --jpeg-quality=88
+
+      - name: Verify final MP4
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s rendered/goal-reel.mp4
+          ffprobe -v error -show_entries format=duration,size -of json rendered/goal-reel.mp4 | tee final-media-info.json
+          ffprobe -v error -show_entries stream=index,codec_type,codec_name,width,height -of json rendered/goal-reel.mp4 | tee final-stream-info.json
+          jq -e '.format.duration | tonumber > 3' final-media-info.json >/dev/null
+          jq -e '.format.size | tonumber > 100000' final-media-info.json >/dev/null
+          jq -e '[.streams[] | select(.codec_type == "video")][0] | .width == 1080 and .height == 1920' final-stream-info.json >/dev/null
+
+      - name: Upload Goal Reel to Cloudflare R2
+        shell: bash
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_PUBLIC_URL: ${{ secrets.R2_PUBLIC_URL }}
+        run: |
+          set -euo pipefail
+          test -n "${AWS_ACCESS_KEY_ID:-}"
+          test -n "${AWS_SECRET_ACCESS_KEY:-}"
+          test -n "${R2_ENDPOINT:-}"
+          test -n "${R2_BUCKET:-}"
+          test -n "${R2_PUBLIC_URL:-}"
+          object_key="game-${game_id}-${GITHUB_RUN_ID}-goal-reel.mp4"
+          aws s3 cp rendered/goal-reel.mp4 "s3://${R2_BUCKET}/${object_key}" \
+            --endpoint-url "$R2_ENDPOINT" \
+            --content-type video/mp4 \
+            --cache-control "public,max-age=31536000,immutable" \
+            --only-show-errors
+          result_url="${R2_PUBLIC_URL%/}/${object_key}"
+          curl -fLsS --retry 5 --retry-delay 2 --range 0-0 -o /dev/null "$result_url"
+          printf '{"ok":true,"gameId":%s,"objectKey":"%s","resultUrl":"%s"}\n' "$game_id" "$object_key" "$result_url" | tee rendered/result.json
+
+      - name: Upload diagnostic artifact
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: tactic-goal-reel-${{ env.game_id }}-${{ github.run_id }}
+          path: |
+            render-payload.json
+            rendered/goal-reel.mp4
+            rendered/result.json
+            final-media-info.json
+            final-stream-info.json
+          retention-days: 3
+          if-no-files-found: ignore
