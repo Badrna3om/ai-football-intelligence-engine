@@ -32,7 +32,7 @@ jobs:
           test -n "$R2_ACCESS_KEY_ID" || { echo 'Missing R2_ACCESS_KEY_ID'; exit 11; }
           test -n "$R2_SECRET_ACCESS_KEY" || { echo 'Missing R2_SECRET_ACCESS_KEY'; exit 12; }
 
-      - name: Install media tools
+      - name: Prepare media tools
         run: |
           set -euo pipefail
           MISSING=""
@@ -43,7 +43,10 @@ jobs:
             sudo apt-get update -y
             sudo apt-get install -y $MISSING
           fi
-          python3 -m pip install --break-system-packages -U yt-dlp
+          sudo curl -fL --retry 3 --retry-delay 1 \
+            https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp \
+            -o /usr/local/bin/yt-dlp
+          sudo chmod 0755 /usr/local/bin/yt-dlp
           ffmpeg -version | head -1
           yt-dlp --version
 
