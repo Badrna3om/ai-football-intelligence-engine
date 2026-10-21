@@ -91,21 +91,13 @@ jobs:
           cd motion-renderer
           npm install --no-audit --no-fund
 
-      - name: Stage Snap Amer brand logo locally
+      - name: Validate Snap Amer brand logo
         shell: bash
         run: |
           set -euo pipefail
           brand_url="$(jq -r '.assets.brandLogoUrl // .brandLogoUrl // empty' render-payload.json)"
           if [ -n "$brand_url" ]; then
-            mkdir -p motion-renderer/public
-            curl -fLsS --retry 5 --retry-delay 2 "$brand_url" -o motion-renderer/public/snap-amer-logo.png
-            test -s motion-renderer/public/snap-amer-logo.png
-            python3 - <<'PY'
-          import json
-          p='render-payload.json'; data=json.load(open(p))
-          data.setdefault('assets',{})['brandLogoUrl']='/snap-amer-logo.png'
-          with open(p,'w') as f: json.dump(data,f,ensure_ascii=False)
-          PY
+            curl -fLsS --retry 5 --retry-delay 2 --range 0-0 -o /dev/null "$brand_url"
           fi
 
       - name: Stage full goal clips locally
