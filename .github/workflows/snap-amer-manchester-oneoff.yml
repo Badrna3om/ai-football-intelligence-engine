@@ -1,0 +1,123 @@
+name: SNAP AMER Manchester One-Off
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/snap-amer-manchester-oneoff.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  download-and-render:
+    runs-on: macos-latest
+    timeout-minutes: 25
+    steps:
+      - name: Download five goal clips from X CDN
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p work
+          UA='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36'
+          download() {
+            local n="$1" url="$2" ref="$3"
+            echo "Downloading goal ${n}..."
+            curl --fail --location --retry 3 --retry-all-errors --connect-timeout 15 --max-time 180 \
+              --http1.1 -A "$UA" -e "$ref" \
+              -H 'Accept: video/mp4,video/*;q=0.9,*/*;q=0.8' \
+              "$url" -o "work/goal${n}.mp4"
+            test -s "work/goal${n}.mp4"
+            echo "goal${n} bytes=$(stat -f%z "work/goal${n}.mp4")"
+          }
+          download 1 'https://video.twimg.com/amplify_video/2112950019552591872/vid/avc1/1280x720/KUMRxyXOxIvE2pPW.mp4?tag=16' 'https://x.com/beINSPORTS/status/2112950095322755458'
+          download 2 'https://video.twimg.com/amplify_video/2112966445516652545/vid/avc1/1920x1080/1ve8_to337SbjXZ1.mp4?tag=16' 'https://x.com/ReyadAlasiri/status/2112970203491340757'
+          download 3 'https://video.twimg.com/amplify_video/2112968944571052032/vid/avc1/1920x1080/IVX1wizCOGkOsh-y.mp4?tag=16' 'https://x.com/1SMi_/status/2112970188325064873'
+          download 4 'https://video.twimg.com/amplify_video/2112973849373417472/vid/avc1/1920x1080/fNi8NYLudaUvxrYK.mp4?tag=16' 'https://x.com/1SMi_/status/2112975347683901856'
+          download 5 'https://video.twimg.com/amplify_video/2112976041748631552/vid/avc1/1280x720/XPmBMS0J3NEhB1kn.mp4?tag=14' 'https://x.com/berbatoviq/status/2112976981155291208'
+
+      - name: Upload clips to TACTIC motion asset server
+        shell: bash
+        run: |
+          set -euo pipefail
+          : > work/assets.tsv
+          for n in 1 2 3 4 5; do
+            resp=$(curl --fail --location --max-time 180 \
+              -X POST 'https://personal-tactic-motion.8kospi.easypanel.host/assets' \
+              -H 'Content-Type: video/mp4' \
+              -H "x-file-name: SNAP-AMER-Como-Manchester-goal-${n}.mp4" \
+              -H 'x-media-type: goal' \
+              -H 'x-source: x-macos-edge' \
+              -H 'x-original-mime-type: video/mp4' \
+              -H 'x-matchup-key: Como__Manchester United' \
+              --data-binary "@work/goal${n}.mp4")
+            echo "$resp" > "work/asset${n}.json"
+            url=$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(d.get("url") or d.get("assetUrl") or d.get("asset_url") or "")' "work/asset${n}.json")
+            test -n "$url"
+            printf '%s\t%s\n' "$n" "$url" >> work/assets.tsv
+            echo "ASSET_${n}=$url"
+          done
+
+      - name: Build Snap Amer goal reel payload
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          urls={}
+          with open('work/assets.tsv',encoding='utf-8') as f:
+              for line in f:
+                  n,u=line.rstrip('\n').split('\t',1); urls[int(n)]=u
+          goals=[
+            dict(minute=2,displayMinute="2'",scorer='نيكو باز',team='كومو',teamSide='home',scoreAfter='1 - 0',videoUrl=urls[1],videoStartSeconds=0,goalOrderLabel='الهدف الأول',teamBadgeUrl='https://imagecache.365scores.com/image/upload/f_png,c_limit,q_auto:eco,dpr_1/Competitors/6117'),
+            dict(minute=49,displayMinute="49'",scorer='أناستاسيوس دوفيكاس',team='كومو',teamSide='home',scoreAfter='2 - 0',videoUrl=urls[2],videoStartSeconds=0,goalOrderLabel='الهدف الثاني',teamBadgeUrl='https://imagecache.365scores.com/image/upload/f_png,c_limit,q_auto:eco,dpr_1/Competitors/6117'),
+            dict(minute=57,displayMinute="57'",scorer='نيكو باز',team='كومو',teamSide='home',scoreAfter='3 - 0',videoUrl=urls[3],videoStartSeconds=0,goalOrderLabel='الهدف الثالث',teamBadgeUrl='https://imagecache.365scores.com/image/upload/f_png,c_limit,q_auto:eco,dpr_1/Competitors/6117'),
+            dict(minute=76,displayMinute="76'",scorer='جاكوبو رامون',team='كومو',teamSide='home',scoreAfter='4 - 0',videoUrl=urls[4],videoStartSeconds=0,goalOrderLabel='الهدف الرابع',teamBadgeUrl='https://imagecache.365scores.com/image/upload/f_png,c_limit,q_auto:eco,dpr_1/Competitors/6117'),
+            dict(minute=90,displayMinute="90+1'",scorer='جوشوا زيركزي',team='مانشستر يونايتد',teamSide='away',scoreAfter='4 - 1',videoUrl=urls[5],videoStartSeconds=0,goalOrderLabel='الهدف الخامس',teamBadgeUrl='https://imagecache.365scores.com/image/upload/f_png,c_limit,q_auto:eco,dpr_1/Competitors/105'),
+          ]
+          payload={
+            'compositionId':'SnapAmerGoalReel',
+            'brandName':'سناب عامر',
+            'brandLogoUrl':'https://drive.google.com/uc?export=download&id=1MN69jzBKBndKK_vUI9up-f-L6xWlnxsH',
+            'gameId':21102026,
+            'competition':'دوري أبطال أوروبا',
+            'competitionLogoUrl':'',
+            'round':'',
+            'dateLabel':'21 أكتوبر 2026',
+            'timeLabel':'',
+            'venue':'ستاديو جوزيبي سينيغاليا',
+            'referee':'سفين يابلونسكي',
+            'homeTeam':'كومو',
+            'awayTeam':'مانشستر يونايتد',
+            'homeBadgeUrl':'https://imagecache.365scores.com/image/upload/f_png,c_limit,q_auto:eco,dpr_1/Competitors/6117',
+            'awayBadgeUrl':'https://imagecache.365scores.com/image/upload/f_png,c_limit,q_auto:eco,dpr_1/Competitors/105',
+            'score':'4 - 1',
+            'stadiumImageUrl':'https://personal-tactic-motion.8kospi.easypanel.host/assets/match_presentation_stadium_locked.jpg',
+            'goals':goals,
+          }
+          json.dump(payload,open('work/render-payload.json','w',encoding='utf-8'),ensure_ascii=False)
+          PY
+          python3 -m json.tool work/render-payload.json >/dev/null
+
+      - name: Start Snap Amer render
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --max-time 180 \
+            -X POST 'https://personal-tactic-motion.8kospi.easypanel.host/goal-reel-renders' \
+            -H 'Content-Type: application/json' \
+            --data-binary @work/render-payload.json \
+            -o work/render-start.json
+          cat work/render-start.json
+          echo
+
+      - name: Preserve run metadata
+        uses: actions/upload-artifact@v4
+        with:
+          name: snap-amer-manchester-run
+          path: |
+            work/assets.tsv
+            work/asset*.json
+            work/render-start.json
+            work/render-payload.json
+          retention-days: 1
