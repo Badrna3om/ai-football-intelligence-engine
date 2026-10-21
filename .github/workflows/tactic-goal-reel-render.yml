@@ -50,6 +50,25 @@ jobs:
           cd motion-renderer
           npm install --no-audit --no-fund
 
+      - name: Stage Snap Amer brand logo locally
+        shell: bash
+        run: |
+          set -euo pipefail
+          brand_url="$(jq -r '.brandLogoUrl // empty' render-payload.json)"
+          if [ -n "$brand_url" ]; then
+            mkdir -p motion-renderer/public
+            curl -fLsS --retry 5 --retry-delay 2 "$brand_url" -o motion-renderer/public/snap-amer-logo.png
+            file motion-renderer/public/snap-amer-logo.png
+            test -s motion-renderer/public/snap-amer-logo.png
+            python3 - <<'PY'
+          import json
+          p='render-payload.json'
+          data=json.load(open(p))
+          data['brandLogoUrl']='/snap-amer-logo.png'
+          with open(p,'w') as f: json.dump(data,f,ensure_ascii=False)
+          PY
+          fi
+
       - name: Hydrate full goal clip durations
         shell: bash
         run: |
