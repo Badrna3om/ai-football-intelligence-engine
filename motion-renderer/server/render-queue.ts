@@ -368,7 +368,7 @@ export const makeRenderQueue = ({
         codec:"h264",
         outputLocation:out,
         inputProps:j.data as Record<string,unknown>,
-        concurrency:2,
+        concurrency:4,
         imageFormat:"jpeg",
         jpegQuality:88,
         onProgress:({progress}) => {
