@@ -5,6 +5,10 @@ on:
   repository_dispatch:
     types:
       - tactic-goal-reel-render
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/tactic-goal-reel-render.yml
 
 permissions:
   contents: read
@@ -24,12 +28,49 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          jq -e '.client_payload.render_payload | type == "object"' "$GITHUB_EVENT_PATH" >/dev/null
-          jq '.client_payload.render_payload' "$GITHUB_EVENT_PATH" > render-payload.json
+          if [ "${GITHUB_EVENT_NAME}" = "repository_dispatch" ]; then
+            jq -e '.client_payload.render_payload | type == "object"' "$GITHUB_EVENT_PATH" >/dev/null
+            jq '.client_payload.render_payload' "$GITHUB_EVENT_PATH" > render-payload.json
+          else
+            cat > render-payload.json <<'JSON'
+          {
+            "compositionId":"TacticGoalReel",
+            "gameId":4789450,
+            "homeTeam":"النصر",
+            "awayTeam":"نيوم",
+            "competitionName":"الدوري السعودي",
+            "roundName":"الجولة 10",
+            "venueName":"استاد الملك فهد الدولي",
+            "matchDate":"20 أكتوبر 2026",
+            "homeScore":1,
+            "awayScore":0,
+            "assets":{
+              "brandLogoUrl":"https://personal-tactic-motion.8kospi.easypanel.host/assets/snapamer.webp",
+              "stadiumBackgroundUrl":"https://personal-tactic-motion.8kospi.easypanel.host/assets/match_presentation_stadium_locked.jpg",
+              "homeBadgeUrl":"https://personal-tactic-motion.8kospi.easypanel.host/assets/8bf0b19a-5266-4976-8f41-d8301ba1bcdf.png",
+              "awayBadgeUrl":"https://personal-tactic-motion.8kospi.easypanel.host/assets/3ac71dc7-26db-41a2-9ca3-7a5658520372.png",
+              "competitionLogoUrl":"https://personal-tactic-motion.8kospi.easypanel.host/assets/f8f159f3-ff00-4cdc-9f1b-70956063c278.png",
+              "homePrimaryColor":"#F4D019",
+              "awayPrimaryColor":"#2EA3E0"
+            },
+            "goals":[{
+              "minute":61,
+              "scorerName":"جواو فيليكس",
+              "teamName":"النصر",
+              "scoreAfter":"1 - 0",
+              "videoUrl":"https://personal-tactic-motion.8kospi.easypanel.host/assets/ddac7a42-52c3-4965-9102-6ea42662f48e.mp4",
+              "clipStartSeconds":5.5,
+              "clipDurationSeconds":12.5,
+              "durationInSeconds":12.5,
+              "teamColor":"#F4D019"
+            }]
+          }
+          JSON
+          fi
           jq -e '.gameId and (.goals | type == "array") and (.goals | length > 0)' render-payload.json >/dev/null
           jq -e '.goals as $goals | [$goals[] | select(.videoUrl != null and .videoUrl != "")] | length == ($goals | length)' render-payload.json >/dev/null
           game_id="$(jq -r '.gameId' render-payload.json)"
-          composition_id="$(jq -r '.compositionId // "SnapAmerGoalReel"' render-payload.json)"
+          composition_id="$(jq -r '.compositionId // "TacticGoalReel"' render-payload.json)"
           echo "game_id=${game_id}" >> "$GITHUB_ENV"
           echo "composition_id=${composition_id}" >> "$GITHUB_ENV"
 
@@ -54,17 +95,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          brand_url="$(jq -r '.brandLogoUrl // empty' render-payload.json)"
+          brand_url="$(jq -r '.assets.brandLogoUrl // .brandLogoUrl // empty' render-payload.json)"
           if [ -n "$brand_url" ]; then
             mkdir -p motion-renderer/public
             curl -fLsS --retry 5 --retry-delay 2 "$brand_url" -o motion-renderer/public/snap-amer-logo.png
-            file motion-renderer/public/snap-amer-logo.png
             test -s motion-renderer/public/snap-amer-logo.png
             python3 - <<'PY'
           import json
-          p='render-payload.json'
-          data=json.load(open(p))
-          data['brandLogoUrl']='/snap-amer-logo.png'
+          p='render-payload.json'; data=json.load(open(p))
+          data.setdefault('assets',{})['brandLogoUrl']='/snap-amer-logo.png'
           with open(p,'w') as f: json.dump(data,f,ensure_ascii=False)
           PY
           fi
@@ -83,15 +122,16 @@ jobs:
             duration="$(ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 "$local_file" | head -1)"
             python3 - "$i" "$duration" <<'PY'
           import json,sys
-          idx=int(sys.argv[1]); duration=float(sys.argv[2])
-          p='render-payload.json'
-          data=json.load(open(p))
-          data['goals'][idx]['durationInSeconds']=max(6.0,min(45.0,duration))
-          data['goals'][idx]['videoUrl']=f'/goal-{idx}.mp4'
+          idx=int(sys.argv[1]); source_duration=float(sys.argv[2])
+          p='render-payload.json'; data=json.load(open(p)); g=data['goals'][idx]
+          g['sourceDurationInSeconds']=source_duration
+          if not isinstance(g.get('durationInSeconds'),(int,float)) or g['durationInSeconds'] <= 0:
+              g['durationInSeconds']=min(12.0,source_duration)
+          g['videoUrl']=f'/goal-{idx}.mp4'
           with open(p,'w') as f: json.dump(data,f,ensure_ascii=False)
           PY
           done
-          jq '.goals | map({minute, scorer, scoreAfter, durationInSeconds, videoUrl})' render-payload.json
+          jq '.goals | map({minute, scorerName, teamName, scoreAfter, clipStartSeconds, clipDurationSeconds, durationInSeconds, sourceDurationInSeconds, videoUrl})' render-payload.json
 
       - name: Render Goal Reel
         shell: bash
@@ -127,17 +167,8 @@ jobs:
           R2_PUBLIC_URL: ${{ secrets.R2_PUBLIC_URL }}
         run: |
           set -euo pipefail
-          test -n "${AWS_ACCESS_KEY_ID:-}"
-          test -n "${AWS_SECRET_ACCESS_KEY:-}"
-          test -n "${R2_ENDPOINT:-}"
-          test -n "${R2_BUCKET:-}"
-          test -n "${R2_PUBLIC_URL:-}"
           object_key="game-${game_id}-${GITHUB_RUN_ID}-goal-reel.mp4"
-          aws s3 cp rendered/goal-reel.mp4 "s3://${R2_BUCKET}/${object_key}" \
-            --endpoint-url "$R2_ENDPOINT" \
-            --content-type video/mp4 \
-            --cache-control "public,max-age=31536000,immutable" \
-            --only-show-errors
+          aws s3 cp rendered/goal-reel.mp4 "s3://${R2_BUCKET}/${object_key}" --endpoint-url "$R2_ENDPOINT" --content-type video/mp4 --cache-control "public,max-age=31536000,immutable" --only-show-errors
           result_url="${R2_PUBLIC_URL%/}/${object_key}"
           curl -fLsS --retry 5 --retry-delay 2 --range 0-0 -o /dev/null "$result_url"
           printf '{"ok":true,"gameId":%s,"objectKey":"%s","resultUrl":"%s"}\n' "$game_id" "$object_key" "$result_url" | tee rendered/result.json
