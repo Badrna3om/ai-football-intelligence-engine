@@ -100,18 +100,17 @@ jobs:
             curl -fLsS --retry 5 --retry-delay 2 --range 0-0 -o /dev/null "$brand_url"
           fi
 
-      - name: Stage full goal clips locally
+      - name: Inspect goal clips
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p motion-renderer/public
           count="$(jq '.goals | length' render-payload.json)"
           for ((i=0; i<count; i++)); do
             url="$(jq -r ".goals[$i].videoUrl" render-payload.json)"
-            local_file="motion-renderer/public/goal-${i}.mp4"
-            curl -fLsS --retry 5 --retry-delay 2 "$url" -o "$local_file"
-            test -s "$local_file"
-            duration="$(ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 "$local_file" | head -1)"
+            tmp_file="/tmp/goal-${i}.mp4"
+            curl -fLsS --retry 5 --retry-delay 2 "$url" -o "$tmp_file"
+            test -s "$tmp_file"
+            duration="$(ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 "$tmp_file" | head -1)"
             python3 - "$i" "$duration" <<'PY'
           import json,sys
           idx=int(sys.argv[1]); source_duration=float(sys.argv[2])
@@ -119,7 +118,6 @@ jobs:
           g['sourceDurationInSeconds']=source_duration
           if not isinstance(g.get('durationInSeconds'),(int,float)) or g['durationInSeconds'] <= 0:
               g['durationInSeconds']=min(12.0,source_duration)
-          g['videoUrl']=f'/goal-{idx}.mp4'
           with open(p,'w') as f: json.dump(data,f,ensure_ascii=False)
           PY
           done
