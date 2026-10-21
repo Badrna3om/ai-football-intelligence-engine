@@ -6,6 +6,7 @@
     "start": "tsx server"
   },
   "dependencies": {
+    "@dawod/thmanyah-font-web": "^1.2.0",
     "@remotion/bundler": "4.0.520",
     "@remotion/cli": "4.0.520",
     "@remotion/google-fonts": "4.0.520",
