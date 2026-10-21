@@ -30,6 +30,12 @@ import {
   defaultMatchPresentationProps,
   calculateMatchPresentationDuration,
 } from "./match-presentation/TacticMatchPresentationLayered";
+import {
+  TacticGoalReel,
+  tacticGoalReelSchema,
+  defaultGoalReelProps,
+  calculateGoalReelDuration,
+} from "./goal-reel/TacticGoalReel";
 
 export const RemotionRoot:React.FC=()=> (
   <>
@@ -54,6 +60,17 @@ export const RemotionRoot:React.FC=()=> (
       schema={tacticMasterV1Schema}
       defaultProps={defaultMasterV1Props}
       calculateMetadata={({props})=>({durationInFrames:calculateMasterV1Duration(props)})}
+    />
+    <Composition
+      id="TacticGoalReel"
+      component={TacticGoalReel}
+      durationInFrames={390}
+      fps={30}
+      width={1080}
+      height={1920}
+      schema={tacticGoalReelSchema}
+      defaultProps={defaultGoalReelProps}
+      calculateMetadata={({props})=>({durationInFrames:calculateGoalReelDuration(props)})}
     />
     <Composition
       id="TacticStatsHilalReference"
