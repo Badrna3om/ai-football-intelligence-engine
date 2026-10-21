@@ -7,6 +7,7 @@ import {
   Video,
   interpolate,
   spring,
+  staticFile,
   useCurrentFrame,
   useVideoConfig,
 } from "remotion";
@@ -85,15 +86,18 @@ const safeSeconds = (g:any) => {
 export const calculateSnapAmerGoalReelDuration = (p:SnapAmerGoalReelProps) =>
   INTRO_FRAMES + p.goals.reduce((sum,g)=>sum + GOAL_LEAD_FRAMES + Math.round(safeSeconds(g)*FPS),0);
 
-const Brand:React.FC<{p:SnapAmerGoalReelProps; small?:boolean}> = ({p,small=false}) => (
-  <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:small?92:150}}>
-    {p.brandLogoUrl ? (
-      <Img src={p.brandLogoUrl} style={{height:small?78:132,maxWidth:small?220:320,objectFit:"contain",filter:"drop-shadow(0 4px 14px rgba(0,0,0,.55))"}}/>
-    ) : (
-      <div style={{fontFamily:font,fontSize:small?34:48,fontWeight:900,color:WHITE}}>{p.brandName}</div>
-    )}
-  </div>
-);
+const Brand:React.FC<{p:SnapAmerGoalReelProps; small?:boolean}> = ({p,small=false}) => {
+  const logoSrc = p.brandLogoUrl === "/snap-amer-logo.png" ? staticFile("snap-amer-logo.png") : p.brandLogoUrl;
+  return (
+    <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:small?92:150}}>
+      {logoSrc ? (
+        <Img src={logoSrc} style={{height:small?78:132,maxWidth:small?220:320,objectFit:"contain",filter:"drop-shadow(0 4px 14px rgba(0,0,0,.55))"}}/>
+      ) : (
+        <div style={{fontFamily:font,fontSize:small?34:48,fontWeight:900,color:WHITE}}>{p.brandName}</div>
+      )}
+    </div>
+  );
+};
 
 const Intro:React.FC<{p:SnapAmerGoalReelProps}> = ({p}) => {
   const frame = useCurrentFrame();
@@ -163,10 +167,11 @@ const GoalLead:React.FC<{p:SnapAmerGoalReelProps;g:any;i:number}> = ({p,g,i}) =>
 const GoalScene:React.FC<{p:SnapAmerGoalReelProps;g:any;i:number}> = ({p,g,i}) => {
   const minute=g.displayMinute || `${g.minute}'`;
   const badge=g.teamBadgeUrl || (g.teamSide==="away"?p.awayBadgeUrl:p.homeBadgeUrl);
+  const startFrom=Math.max(0,Math.round((g.videoStartSeconds||0)*FPS));
   return <AbsoluteFill style={{background:"#020304",fontFamily:font,color:WHITE,direction:"rtl",overflow:"hidden"}}>
-    <Video src={g.videoUrl} startFrom={Math.max(0,Math.round((g.videoStartSeconds||0)*FPS))} volume={1} style={{position:"absolute",inset:-80,width:"calc(100% + 160px)",height:"calc(100% + 160px)",objectFit:"cover",filter:"blur(28px) brightness(.36) saturate(.75)",transform:"scale(1.08)"}}/>
+    <Video src={g.videoUrl} startFrom={startFrom} volume={0} style={{position:"absolute",inset:-80,width:"calc(100% + 160px)",height:"calc(100% + 160px)",objectFit:"cover",filter:"blur(28px) brightness(.36) saturate(.75)",transform:"scale(1.08)"}}/>
     <div style={{position:"absolute",top:30,left:0,right:0,zIndex:4}}><Brand p={p} small/></div>
-    <Video src={g.videoUrl} startFrom={Math.max(0,Math.round((g.videoStartSeconds||0)*FPS))} volume={1} style={{position:"absolute",top:350,left:0,width:"100%",height:610,objectFit:"cover",zIndex:2}}/>
+    <Video src={g.videoUrl} startFrom={startFrom} volume={1} style={{position:"absolute",top:350,left:0,width:"100%",height:610,objectFit:"cover",zIndex:2}}/>
     <div style={{position:"absolute",left:0,right:0,bottom:0,height:690,background:PANEL,zIndex:3,borderTop:"1px solid rgba(255,255,255,.08)"}}>
       <div style={{position:"absolute",top:118,left:52,right:52,height:3,background:"linear-gradient(90deg,#7442C8,#A45FF0)"}}/>
       <div style={{position:"absolute",top:165,left:52,right:52,display:"grid",gridTemplateColumns:"250px 1fr",gap:42,alignItems:"center"}}>
