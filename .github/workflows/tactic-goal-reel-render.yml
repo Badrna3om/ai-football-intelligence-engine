@@ -5,10 +5,6 @@ on:
   repository_dispatch:
     types:
       - tactic-goal-reel-render
-  push:
-    branches: [main]
-    paths:
-      - .github/workflows/tactic-goal-reel-render.yml
 
 permissions:
   contents: read
@@ -28,45 +24,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [ "${GITHUB_EVENT_NAME}" = "repository_dispatch" ]; then
-            jq -e '.client_payload.render_payload | type == "object"' "$GITHUB_EVENT_PATH" >/dev/null
-            jq '.client_payload.render_payload' "$GITHUB_EVENT_PATH" > render-payload.json
-          else
-            cat > render-payload.json <<'JSON'
-          {
-            "compositionId":"TacticGoalReel",
-            "gameId":4789450,
-            "homeTeam":"النصر",
-            "awayTeam":"نيوم",
-            "competitionName":"الدوري السعودي",
-            "roundName":"الجولة 10",
-            "venueName":"استاد الملك فهد الدولي",
-            "matchDate":"20 أكتوبر 2026",
-            "homeScore":1,
-            "awayScore":0,
-            "assets":{
-              "brandLogoUrl":"https://personal-tactic-motion.8kospi.easypanel.host/assets/snapamer.webp",
-              "stadiumBackgroundUrl":"https://personal-tactic-motion.8kospi.easypanel.host/assets/match_presentation_stadium_locked.jpg",
-              "homeBadgeUrl":"https://personal-tactic-motion.8kospi.easypanel.host/assets/8bf0b19a-5266-4976-8f41-d8301ba1bcdf.png",
-              "awayBadgeUrl":"https://personal-tactic-motion.8kospi.easypanel.host/assets/3ac71dc7-26db-41a2-9ca3-7a5658520372.png",
-              "competitionLogoUrl":"https://personal-tactic-motion.8kospi.easypanel.host/assets/f8f159f3-ff00-4cdc-9f1b-70956063c278.png",
-              "homePrimaryColor":"#F4D019",
-              "awayPrimaryColor":"#2EA3E0"
-            },
-            "goals":[{
-              "minute":61,
-              "scorerName":"جواو فيليكس",
-              "teamName":"النصر",
-              "scoreAfter":"1 - 0",
-              "videoUrl":"https://personal-tactic-motion.8kospi.easypanel.host/assets/ddac7a42-52c3-4965-9102-6ea42662f48e.mp4",
-              "clipStartSeconds":5.5,
-              "clipDurationSeconds":12.5,
-              "durationInSeconds":12.5,
-              "teamColor":"#F4D019"
-            }]
-          }
-          JSON
-          fi
+          jq -e '.client_payload.render_payload | type == "object"' "$GITHUB_EVENT_PATH" >/dev/null
+          jq '.client_payload.render_payload' "$GITHUB_EVENT_PATH" > render-payload.json
           jq -e '.gameId and (.goals | type == "array") and (.goals | length > 0)' render-payload.json >/dev/null
           jq -e '.goals as $goals | [$goals[] | select(.videoUrl != null and .videoUrl != "")] | length == ($goals | length)' render-payload.json >/dev/null
           game_id="$(jq -r '.gameId' render-payload.json)"
@@ -123,7 +82,6 @@ jobs:
           with open(p,'w') as f: json.dump(data,f,ensure_ascii=False)
           PY
           done
-          jq '.goals | map({minute, scorerName, teamName, scoreAfter, clipStartSeconds, clipDurationSeconds, durationInSeconds, sourceDurationInSeconds, videoUrl})' render-payload.json
 
       - name: Render Goal Reel
         shell: bash
