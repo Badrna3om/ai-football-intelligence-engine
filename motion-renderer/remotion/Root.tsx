@@ -36,6 +36,12 @@ import {
   defaultGoalReelProps,
   calculateGoalReelDuration,
 } from "./goal-reel/TacticGoalReel";
+import {
+  SnapAmerGoalReel,
+  snapAmerGoalReelSchema,
+  defaultSnapAmerGoalReelProps,
+  calculateSnapAmerGoalReelDuration,
+} from "./snap-amer/SnapAmerGoalReel";
 
 export const RemotionRoot:React.FC=()=> (
   <>
@@ -71,6 +77,17 @@ export const RemotionRoot:React.FC=()=> (
       schema={tacticGoalReelSchema}
       defaultProps={defaultGoalReelProps}
       calculateMetadata={({props})=>({durationInFrames:calculateGoalReelDuration(props)})}
+    />
+    <Composition
+      id="SnapAmerGoalReel"
+      component={SnapAmerGoalReel}
+      durationInFrames={630}
+      fps={30}
+      width={1080}
+      height={1920}
+      schema={snapAmerGoalReelSchema}
+      defaultProps={defaultSnapAmerGoalReelProps}
+      calculateMetadata={({props})=>({durationInFrames:calculateSnapAmerGoalReelDuration(props)})}
     />
     <Composition
       id="TacticStatsHilalReference"
