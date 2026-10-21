@@ -44,12 +44,8 @@ jobs:
             sudo apt-get install -y $MISSING
           fi
           python3 -m pip install --break-system-packages -U yt-dlp
-          if ! command -v aws >/dev/null 2>&1; then
-            python3 -m pip install --break-system-packages -U awscli
-          fi
           ffmpeg -version | head -1
           yt-dlp --version
-          aws --version
 
       - name: Download X and upload to Cloudflare R2
         run: |
