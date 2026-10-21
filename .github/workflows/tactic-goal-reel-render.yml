@@ -27,7 +27,7 @@ jobs:
           jq -e '.client_payload.render_payload | type == "object"' "$GITHUB_EVENT_PATH" >/dev/null
           jq '.client_payload.render_payload' "$GITHUB_EVENT_PATH" > render-payload.json
           jq -e '.gameId and (.goals | type == "array") and (.goals | length > 0)' render-payload.json >/dev/null
-          jq -e '[.goals[] | select(.videoUrl != null and .videoUrl != "")] | length == (.goals | length)' render-payload.json >/dev/null
+          jq -e '.goals as $goals | [$goals[] | select(.videoUrl != null and .videoUrl != "")] | length == ($goals | length)' render-payload.json >/dev/null
           game_id="$(jq -r '.gameId' render-payload.json)"
           echo "game_id=${game_id}" >> "$GITHUB_ENV"
 
