@@ -43,7 +43,6 @@ const venue=(p:TacticGoalReelProps)=>txt(p.venueName||p.venue||p.stadium||p.matc
 const matchDate=(p:TacticGoalReelProps)=>txt(p.matchDate||p.match?.match_date_ar||p.startTime||p.match?.start_time||p.match?.startTime);
 const round=(p:TacticGoalReelProps)=>txt(p.roundName||p.match?.round_name_ar||p.match?.round_name||(p.roundNum?`الجولة ${p.roundNum}`:p.match?.round_num?`الجولة ${p.match.round_num}`:""));
 
-// Goal clip policy: always start from the beginning and remove only the final 5 seconds.
 const goalSeconds=(g:any)=>{
   const source=Number(g?.sourceDurationInSeconds);
   if(Number.isFinite(source)&&source>5.5)return Math.max(1,source-5);
@@ -59,8 +58,8 @@ const Intro:React.FC<{p:TacticGoalReelProps}>=({p})=>{
   const frame=useCurrentFrame();const {fps}=useVideoConfig();const enter=spring({frame,fps,config:{damping:18,stiffness:120}});
   const hb=p.assets?.homeBadgeUrl||p.match?.home?.badgeUrl;const ab=p.assets?.awayBadgeUrl||p.match?.away?.badgeUrl;const cl=p.assets?.competitionLogoUrl;
   return <AbsoluteFill style={{background:"#050607",color:"white",fontFamily:font,direction:"rtl",overflow:"hidden"}}>
-    <Img src={p.assets?.stadiumBackgroundUrl||STADIUM_BG} style={{position:"absolute",inset:-18,width:"108%",height:"108%",objectFit:"cover",filter:"blur(3px) brightness(.62) saturate(1.08)",transform:"scale(1.03)"}}/>
-    <div style={{position:"absolute",inset:0,background:"linear-gradient(180deg,rgba(2,4,8,.08),rgba(1,3,5,.36))"}}/>
+    <Img src={p.assets?.stadiumBackgroundUrl||STADIUM_BG} style={{position:"absolute",inset:-18,width:"108%",height:"108%",objectFit:"cover",filter:"brightness(.72) saturate(1.12)",transform:"scale(1.03)"}}/>
+    <div style={{position:"absolute",inset:0,background:"linear-gradient(180deg,rgba(2,4,8,.05),rgba(1,3,5,.26))"}}/>
     <Img src={p.assets?.brandLogoUrl||SNAP_AMER_LOGO} style={{position:"absolute",top:38,left:"50%",width:150,height:150,objectFit:"contain",transform:"translateX(-50%)"}}/>
     <div style={{position:"absolute",top:205,left:0,right:0,textAlign:"center",fontSize:46,fontWeight:800}}>{competition(p)}</div>
     <div style={{position:"absolute",top:270,left:0,right:0,textAlign:"center",fontSize:34,fontWeight:800,color:"#D9B45A"}}>{round(p)}</div>
@@ -71,7 +70,7 @@ const Intro:React.FC<{p:TacticGoalReelProps}>=({p})=>{
       <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:18}}>{ab?<Img src={ab} style={{width:235,height:235,objectFit:"contain"}}/>:null}<div style={{fontSize:52,fontWeight:900}}>{awayTeam(p)}</div></div>
     </div>
     <div style={{position:"absolute",top:955,left:0,right:0,textAlign:"center",fontSize:34,fontWeight:700}}>{matchDate(p)}</div>
-    <div style={{position:"absolute",top:1080,left:55,right:55,height:430,border:"1px solid rgba(217,180,90,.46)",background:"rgba(0,0,0,.30)",backdropFilter:"blur(4px)",padding:"38px 52px"}}>
+    <div style={{position:"absolute",top:1080,left:55,right:55,height:430,border:"1px solid rgba(217,180,90,.46)",background:"rgba(0,0,0,.26)",padding:"38px 52px"}}>
       <div style={{fontSize:48,fontWeight:900,textAlign:"center",marginBottom:44}}>معلومات المباراة</div>
       <div style={{display:"grid",gridTemplateColumns:"170px 1fr",alignItems:"center",rowGap:50,fontSize:34}}>
         <div style={{color:"#D9B45A",fontWeight:800}}>الملعب</div><div style={{fontWeight:700}}>{venue(p)}</div>
@@ -88,8 +87,8 @@ const GoalScene:React.FC<{p:TacticGoalReelProps;goal:any;index:number}>=({p,goal
   const badge=(team===homeTeam(p)||team.toLowerCase().includes("nassr")||team.includes("النصر"))?(p.assets?.homeBadgeUrl||p.match?.home?.badgeUrl):(p.assets?.awayBadgeUrl||p.match?.away?.badgeUrl);
   const s=startSeconds(goal);const src=mediaSrc(goal.videoUrl);
   return <AbsoluteFill style={{background:"#020304",fontFamily:font,color:"white",overflow:"hidden"}}>
-    <Video src={src} startFrom={Math.round(s*FPS)} volume={1} style={{position:"absolute",inset:-70,width:"114%",height:"114%",objectFit:"cover",filter:"blur(28px) brightness(.42) saturate(.9)",transform:"scale(1.08)"}}/>
-    <div style={{position:"absolute",inset:0,background:"rgba(0,0,0,.24)"}}/>
+    <Video src={src} startFrom={Math.round(s*FPS)} volume={1} style={{position:"absolute",inset:-70,width:"114%",height:"114%",objectFit:"cover",filter:"brightness(.38) saturate(.82)",transform:"scale(1.10)"}}/>
+    <div style={{position:"absolute",inset:0,background:"rgba(0,0,0,.20)"}}/>
     <Img src={p.assets?.brandLogoUrl||SNAP_AMER_LOGO} style={{position:"absolute",top:28,left:"50%",width:130,height:130,objectFit:"contain",transform:"translateX(-50%)",zIndex:5}}/>
     <div style={{position:"absolute",top:165,left:160,width:760,height:1280,overflow:"hidden",boxShadow:"0 20px 60px rgba(0,0,0,.55)",zIndex:3}}><Video src={src} startFrom={Math.round(s*FPS)} volume={0} style={{width:"100%",height:"100%",objectFit:"cover"}}/></div>
     <div style={{position:"absolute",left:45,right:45,bottom:95,height:355,background:"rgba(2,3,5,.88)",borderTop:`6px solid ${accent}`,zIndex:6,padding:"46px 48px",display:"grid",gridTemplateColumns:"300px 1fr",direction:"ltr"}}>
