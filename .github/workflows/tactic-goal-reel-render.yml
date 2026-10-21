@@ -1,5 +1,5 @@
-name: TACTIC Goal Reel Render
-run-name: TACTIC Goal Reel ${{ github.event.client_payload.request_id || github.run_id }}
+name: SNAP AMER Goal Reel Render
+run-name: SNAP AMER Goal Reel ${{ github.event.client_payload.request_id || github.run_id }}
 
 on:
   repository_dispatch:
@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: tactic-goal-reel-${{ github.event.client_payload.request_id || github.run_id }}
+  group: snap-amer-goal-reel-${{ github.event.client_payload.request_id || github.run_id }}
   cancel-in-progress: false
 
 jobs:
@@ -29,7 +29,9 @@ jobs:
           jq -e '.gameId and (.goals | type == "array") and (.goals | length > 0)' render-payload.json >/dev/null
           jq -e '.goals as $goals | [$goals[] | select(.videoUrl != null and .videoUrl != "")] | length == ($goals | length)' render-payload.json >/dev/null
           game_id="$(jq -r '.gameId' render-payload.json)"
+          composition_id="$(jq -r '.compositionId // "SnapAmerGoalReel"' render-payload.json)"
           echo "game_id=${game_id}" >> "$GITHUB_ENV"
+          echo "composition_id=${composition_id}" >> "$GITHUB_ENV"
 
       - name: Validate goal video URLs
         shell: bash
@@ -54,11 +56,11 @@ jobs:
           set -euo pipefail
           mkdir -p rendered
           cd motion-renderer
-          npx remotion render remotion/index.ts TacticGoalReel ../rendered/goal-reel.mp4 \
+          npx remotion render remotion/index.ts "$composition_id" ../rendered/goal-reel.mp4 \
             --props=../render-payload.json \
             --codec=h264 \
             --concurrency=2 \
-            --jpeg-quality=88
+            --jpeg-quality=90
 
       - name: Verify final MP4
         shell: bash
@@ -101,7 +103,7 @@ jobs:
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
-          name: tactic-goal-reel-${{ env.game_id }}-${{ github.run_id }}
+          name: snap-amer-goal-reel-${{ env.game_id }}-${{ github.run_id }}
           path: |
             render-payload.json
             rendered/goal-reel.mp4
