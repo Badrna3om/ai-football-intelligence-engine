@@ -1,6 +1,6 @@
 import React from "react";
 import "@dawod/thmanyah-font-web";
-import {AbsoluteFill, Img, Sequence, Video, spring, useCurrentFrame, useVideoConfig} from "remotion";
+import {AbsoluteFill, Img, Sequence, Video, spring, staticFile, useCurrentFrame, useVideoConfig} from "remotion";
 import {z} from "zod";
 
 const FPS = 30;
@@ -10,59 +10,29 @@ const SNAP_AMER_LOGO = "https://personal-tactic-motion.8kospi.easypanel.host/ass
 const STADIUM_BG = "https://personal-tactic-motion.8kospi.easypanel.host/assets/match_presentation_stadium_locked.jpg";
 
 const goalSchema = z.object({
-  minute: z.union([z.string(), z.number()]).optional(),
-  addedTime: z.union([z.string(), z.number()]).optional(),
-  scorer: z.string().optional(),
-  scorerName: z.string().optional(),
-  playerName: z.string().optional(),
-  player_name_ar: z.string().optional(),
-  team: z.string().optional(),
-  teamName: z.string().optional(),
-  score: z.string().optional(),
-  scoreAfter: z.string().optional(),
-  homeScoreAfter: z.number().optional(),
-  awayScoreAfter: z.number().optional(),
-  videoUrl: z.string().optional(),
-  durationInSeconds: z.number().optional(),
-  clipDurationSeconds: z.number().optional(),
-  videoStartSeconds: z.number().optional(),
-  clipStartSeconds: z.number().optional(),
-  teamColor: z.string().optional(),
+  minute: z.union([z.string(), z.number()]).optional(), addedTime: z.union([z.string(), z.number()]).optional(),
+  scorer: z.string().optional(), scorerName: z.string().optional(), playerName: z.string().optional(), player_name_ar: z.string().optional(),
+  team: z.string().optional(), teamName: z.string().optional(), score: z.string().optional(), scoreAfter: z.string().optional(),
+  homeScoreAfter: z.number().optional(), awayScoreAfter: z.number().optional(), videoUrl: z.string().optional(),
+  durationInSeconds: z.number().optional(), clipDurationSeconds: z.number().optional(), videoStartSeconds: z.number().optional(),
+  clipStartSeconds: z.number().optional(), teamColor: z.string().optional(),
 }).passthrough();
 
 export const tacticGoalReelSchema = z.object({
-  compositionId: z.string().optional(),
-  gameId: z.union([z.string(), z.number()]),
-  homeTeam: z.string().optional(),
-  awayTeam: z.string().optional(),
-  competitionName: z.string().optional(),
-  venue: z.string().optional(),
-  venueName: z.string().optional(),
-  stadium: z.string().optional(),
-  matchDate: z.string().optional(),
-  kickoffTime: z.string().optional(),
-  startTime: z.string().optional(),
-  roundName: z.string().optional(),
-  roundNum: z.union([z.string(), z.number()]).optional(),
-  homeScore: z.number().optional(),
-  awayScore: z.number().optional(),
-  match: z.any().optional(),
-  score: z.any().optional(),
-  assets: z.any().optional(),
-  goals: z.array(goalSchema).default([]),
+  compositionId:z.string().optional(), gameId:z.union([z.string(),z.number()]), homeTeam:z.string().optional(), awayTeam:z.string().optional(),
+  competitionName:z.string().optional(), venue:z.string().optional(), venueName:z.string().optional(), stadium:z.string().optional(),
+  matchDate:z.string().optional(), kickoffTime:z.string().optional(), startTime:z.string().optional(), roundName:z.string().optional(),
+  roundNum:z.union([z.string(),z.number()]).optional(), homeScore:z.number().optional(), awayScore:z.number().optional(),
+  match:z.any().optional(), score:z.any().optional(), assets:z.any().optional(), goals:z.array(goalSchema).default([]),
 }).passthrough();
 
-export type TacticGoalReelProps = z.infer<typeof tacticGoalReelSchema>;
-
-export const defaultGoalReelProps:TacticGoalReelProps = {
-  compositionId:"TacticGoalReel", gameId:0, homeTeam:"النصر", awayTeam:"نيوم",
-  competitionName:"الدوري السعودي", venue:"", matchDate:"", kickoffTime:"", roundName:"",
-  homeScore:0, awayScore:0, goals:[], assets:{}
-};
+export type TacticGoalReelProps=z.infer<typeof tacticGoalReelSchema>;
+export const defaultGoalReelProps:TacticGoalReelProps={compositionId:"TacticGoalReel",gameId:0,homeTeam:"النصر",awayTeam:"نيوم",competitionName:"الدوري السعودي",venue:"",matchDate:"",kickoffTime:"",roundName:"",homeScore:0,awayScore:0,goals:[],assets:{}};
 
 const font='"Thmanyah Sans", sans-serif';
 const txt=(v:unknown,f="")=>String(v??f).trim();
 const num=(v:unknown,f=0)=>{const n=Number(v);return Number.isFinite(n)?n:f};
+const mediaSrc=(v:unknown)=>{const s=txt(v);return s.startsWith("/")?staticFile(s.replace(/^\/+/,"")):s};
 const homeTeam=(p:TacticGoalReelProps)=>txt(p.homeTeam||p.match?.home?.name||p.match?.home_team_name_ar||p.match?.home_team_name,"الفريق الأول");
 const awayTeam=(p:TacticGoalReelProps)=>txt(p.awayTeam||p.match?.away?.name||p.match?.away_team_name_ar||p.match?.away_team_name,"الفريق الثاني");
 const homeScore=(p:TacticGoalReelProps)=>num(p.homeScore??p.score?.home??p.match?.home_score,0);
@@ -71,39 +41,15 @@ const competition=(p:TacticGoalReelProps)=>txt(p.competitionName||p.match?.compe
 const venue=(p:TacticGoalReelProps)=>txt(p.venueName||p.venue||p.stadium||p.match?.venue_name_ar||p.match?.venue_name||p.match?.venue?.name);
 const matchDate=(p:TacticGoalReelProps)=>txt(p.matchDate||p.match?.match_date_ar||p.startTime||p.match?.start_time||p.match?.startTime);
 const round=(p:TacticGoalReelProps)=>txt(p.roundName||p.match?.round_name_ar||p.match?.round_name||(p.roundNum?`الجولة ${p.roundNum}`:p.match?.round_num?`الجولة ${p.match.round_num}`:""));
+const goalSeconds=(g:any)=>{const d=Number(g?.clipDurationSeconds??g?.durationInSeconds??g?.duration);return Number.isFinite(d)&&d>0?Math.min(14,Math.max(5,d)):DEFAULT_GOAL_SECONDS};
+const startSeconds=(g:any)=>{const e=Number(g?.clipStartSeconds);if(Number.isFinite(e)&&e>0)return e;const o=Number(g?.videoStartSeconds);if(Number.isFinite(o)&&o>0)return o;return 5.5};
+const teamAccent=(p:TacticGoalReelProps,g:any)=>{if(g?.teamColor)return g.teamColor;const t=txt(g?.teamName||g?.team||g?.team_name_ar||g?.team_name).toLowerCase();if(t.includes("النصر")||t.includes("nassr"))return "#F4D019";if(t.includes("نيوم")||t.includes("neom"))return "#2EA3E0";if(t&&t===homeTeam(p).toLowerCase())return p.assets?.homePrimaryColor||"#F4D019";if(t&&t===awayTeam(p).toLowerCase())return p.assets?.awayPrimaryColor||"#2EA3E0";return "#D9B45A"};
 
-const goalSeconds=(g:any)=>{
-  const d=Number(g?.clipDurationSeconds??g?.durationInSeconds??g?.duration);
-  return Number.isFinite(d)&&d>0?Math.min(14,Math.max(5,d)):DEFAULT_GOAL_SECONDS;
-};
-const startSeconds=(g:any)=>{
-  const explicit=Number(g?.clipStartSeconds);
-  if(Number.isFinite(explicit)&&explicit>0)return explicit;
-  const old=Number(g?.videoStartSeconds);
-  if(Number.isFinite(old)&&old>0)return old;
-  return 5.5;
-};
-const teamAccent=(p:TacticGoalReelProps,g:any)=>{
-  if(g?.teamColor)return g.teamColor;
-  const t=txt(g?.teamName||g?.team||g?.team_name_ar||g?.team_name).toLowerCase();
-  if(t.includes("النصر")||t.includes("nassr"))return "#F4D019";
-  if(t.includes("نيوم")||t.includes("neom"))return "#2EA3E0";
-  if(t&&t===homeTeam(p).toLowerCase())return p.assets?.homePrimaryColor||"#F4D019";
-  if(t&&t===awayTeam(p).toLowerCase())return p.assets?.awayPrimaryColor||"#2EA3E0";
-  return "#D9B45A";
-};
-
-export const calculateGoalReelDuration=(p:TacticGoalReelProps)=>{
-  const goals=(p.goals||[]).filter((g:any)=>g?.videoUrl);
-  return INTRO_FRAMES+goals.reduce((s:number,g:any)=>s+Math.round(goalSeconds(g)*FPS),0);
-};
+export const calculateGoalReelDuration=(p:TacticGoalReelProps)=>INTRO_FRAMES+(p.goals||[]).filter((g:any)=>g?.videoUrl).reduce((s:number,g:any)=>s+Math.round(goalSeconds(g)*FPS),0);
 
 const Intro:React.FC<{p:TacticGoalReelProps}>=({p})=>{
-  const frame=useCurrentFrame(); const {fps}=useVideoConfig();
-  const enter=spring({frame,fps,config:{damping:18,stiffness:120}});
-  const hb=p.assets?.homeBadgeUrl||p.match?.home?.badgeUrl;
-  const ab=p.assets?.awayBadgeUrl||p.match?.away?.badgeUrl;
-  const cl=p.assets?.competitionLogoUrl;
+  const frame=useCurrentFrame();const {fps}=useVideoConfig();const enter=spring({frame,fps,config:{damping:18,stiffness:120}});
+  const hb=p.assets?.homeBadgeUrl||p.match?.home?.badgeUrl;const ab=p.assets?.awayBadgeUrl||p.match?.away?.badgeUrl;const cl=p.assets?.competitionLogoUrl;
   return <AbsoluteFill style={{background:"#050607",color:"white",fontFamily:font,direction:"rtl",overflow:"hidden"}}>
     <Img src={p.assets?.stadiumBackgroundUrl||STADIUM_BG} style={{position:"absolute",inset:-35,width:"115%",height:"115%",objectFit:"cover",filter:"blur(10px) brightness(.28) saturate(.8)",transform:"scale(1.05)"}}/>
     <div style={{position:"absolute",inset:0,background:"linear-gradient(180deg,rgba(2,4,8,.35),rgba(1,3,5,.72))"}}/>
@@ -128,43 +74,21 @@ const Intro:React.FC<{p:TacticGoalReelProps}>=({p})=>{
 };
 
 const GoalScene:React.FC<{p:TacticGoalReelProps;goal:any;index:number}>=({p,goal,index})=>{
-  const accent=teamAccent(p,goal);
-  const minuteRaw=txt(goal.minute||goal.time||goal.goalMinute,"—");
-  const added=txt(goal.addedTime||goal.added_time);
-  const minute=added?`${minuteRaw}+${added}′`:`${minuteRaw.replace(/[′']/g,"")}′`;
-  const scorer=txt(goal.scorerName||goal.scorer||goal.player_name_ar||goal.playerName||goal.player_name,`الهدف ${index+1}`);
-  const team=txt(goal.teamName||goal.team||goal.team_name_ar||goal.team_name);
-  let score=txt(goal.scoreAfter||goal.score);
-  if(!score&&Number.isFinite(Number(goal.homeScoreAfter))&&Number.isFinite(Number(goal.awayScoreAfter)))score=`${goal.homeScoreAfter} - ${goal.awayScoreAfter}`;
+  const accent=teamAccent(p,goal);const minuteRaw=txt(goal.minute||goal.time||goal.goalMinute,"—");const added=txt(goal.addedTime||goal.added_time);
+  const minute=added?`${minuteRaw}+${added}′`:`${minuteRaw.replace(/[′']/g,"")}′`;const scorer=txt(goal.scorerName||goal.scorer||goal.player_name_ar||goal.playerName||goal.player_name,`الهدف ${index+1}`);
+  const team=txt(goal.teamName||goal.team||goal.team_name_ar||goal.team_name);let score=txt(goal.scoreAfter||goal.score);if(!score&&Number.isFinite(Number(goal.homeScoreAfter))&&Number.isFinite(Number(goal.awayScoreAfter)))score=`${goal.homeScoreAfter} - ${goal.awayScoreAfter}`;
   const badge=(team===homeTeam(p)||team.toLowerCase().includes("nassr")||team.includes("النصر"))?(p.assets?.homeBadgeUrl||p.match?.home?.badgeUrl):(p.assets?.awayBadgeUrl||p.match?.away?.badgeUrl);
-  const s=startSeconds(goal);
+  const s=startSeconds(goal);const src=mediaSrc(goal.videoUrl);
   return <AbsoluteFill style={{background:"#020304",fontFamily:font,color:"white",overflow:"hidden"}}>
-    <Video src={goal.videoUrl} startFrom={Math.round(s*FPS)} volume={1} style={{position:"absolute",inset:-70,width:"114%",height:"114%",objectFit:"cover",filter:"blur(28px) brightness(.42) saturate(.9)",transform:"scale(1.08)"}}/>
+    <Video src={src} startFrom={Math.round(s*FPS)} volume={1} style={{position:"absolute",inset:-70,width:"114%",height:"114%",objectFit:"cover",filter:"blur(28px) brightness(.42) saturate(.9)",transform:"scale(1.08)"}}/>
     <div style={{position:"absolute",inset:0,background:"rgba(0,0,0,.24)"}}/>
     <Img src={p.assets?.brandLogoUrl||SNAP_AMER_LOGO} style={{position:"absolute",top:28,left:"50%",width:130,height:130,objectFit:"contain",transform:"translateX(-50%)",zIndex:5}}/>
-    <div style={{position:"absolute",top:165,left:160,width:760,height:1280,overflow:"hidden",boxShadow:"0 20px 60px rgba(0,0,0,.55)",zIndex:3}}>
-      <Video src={goal.videoUrl} startFrom={Math.round(s*FPS)} volume={0} style={{width:"100%",height:"100%",objectFit:"cover"}}/>
-    </div>
+    <div style={{position:"absolute",top:165,left:160,width:760,height:1280,overflow:"hidden",boxShadow:"0 20px 60px rgba(0,0,0,.55)",zIndex:3}}><Video src={src} startFrom={Math.round(s*FPS)} volume={0} style={{width:"100%",height:"100%",objectFit:"cover"}}/></div>
     <div style={{position:"absolute",left:45,right:45,bottom:95,height:355,background:"rgba(2,3,5,.88)",borderTop:`6px solid ${accent}`,zIndex:6,padding:"46px 48px",display:"grid",gridTemplateColumns:"300px 1fr",direction:"ltr"}}>
-      <div style={{position:"relative",direction:"ltr"}}>
-        <div style={{fontSize:88,fontWeight:900,lineHeight:1}}>{minute}</div>
-        <div style={{fontSize:48,fontWeight:900,color:accent,marginTop:32}}>{score||""}</div>
-        {badge?<Img src={badge} style={{position:"absolute",left:150,top:112,width:94,height:94,objectFit:"contain"}}/>:null}
-      </div>
-      <div style={{direction:"rtl",textAlign:"right",paddingTop:8}}>
-        <div style={{fontSize:31,color:"#D2D5DB",fontWeight:700}}>الهدف {index+1===1?"الأول":index+1}</div>
-        <div style={{fontSize:62,fontWeight:900,lineHeight:1.15,marginTop:22}}>{scorer}</div>
-        <div style={{fontSize:38,fontWeight:900,color:accent,marginTop:18}}>{team}</div>
-      </div>
+      <div style={{position:"relative",direction:"ltr"}}><div style={{fontSize:88,fontWeight:900,lineHeight:1}}>{minute}</div><div style={{fontSize:48,fontWeight:900,color:accent,marginTop:32}}>{score||""}</div>{badge?<Img src={badge} style={{position:"absolute",left:150,top:112,width:94,height:94,objectFit:"contain"}}/>:null}</div>
+      <div style={{direction:"rtl",textAlign:"right",paddingTop:8}}><div style={{fontSize:31,color:"#D2D5DB",fontWeight:700}}>الهدف {index+1===1?"الأول":index+1}</div><div style={{fontSize:62,fontWeight:900,lineHeight:1.15,marginTop:22}}>{scorer}</div><div style={{fontSize:38,fontWeight:900,color:accent,marginTop:18}}>{team}</div></div>
     </div>
   </AbsoluteFill>
 };
 
-export const TacticGoalReel:React.FC<TacticGoalReelProps>=(p)=>{
-  const goals=(Array.isArray(p.goals)?p.goals:[]).filter((g:any)=>g?.videoUrl);
-  let cursor=INTRO_FRAMES;
-  return <AbsoluteFill style={{background:"#020304"}}>
-    <Sequence from={0} durationInFrames={INTRO_FRAMES}><Intro p={p}/></Sequence>
-    {goals.map((goal:any,index:number)=>{const frames=Math.round(goalSeconds(goal)*FPS);const from=cursor;cursor+=frames;return <Sequence key={`${index}-${goal.videoUrl}`} from={from} durationInFrames={frames}><GoalScene p={p} goal={goal} index={index}/></Sequence>})}
-  </AbsoluteFill>
-};
+export const TacticGoalReel:React.FC<TacticGoalReelProps>=(p)=>{const goals=(Array.isArray(p.goals)?p.goals:[]).filter((g:any)=>g?.videoUrl);let cursor=INTRO_FRAMES;return <AbsoluteFill style={{background:"#020304"}}><Sequence from={0} durationInFrames={INTRO_FRAMES}><Intro p={p}/></Sequence>{goals.map((goal:any,index:number)=>{const frames=Math.round(goalSeconds(goal)*FPS);const from=cursor;cursor+=frames;return <Sequence key={`${index}-${goal.videoUrl}`} from={from} durationInFrames={frames}><GoalScene p={p} goal={goal} index={index}/></Sequence>})}</AbsoluteFill>};
