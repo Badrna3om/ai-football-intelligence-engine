@@ -1,21 +1,13 @@
 import React from "react";
 import "@dawod/thmanyah-font-web";
-import {
-  AbsoluteFill,
-  Img,
-  Sequence,
-  Video,
-  interpolate,
-  spring,
-  useCurrentFrame,
-  useVideoConfig,
-} from "remotion";
+import {AbsoluteFill, Img, Sequence, Video, spring, useCurrentFrame, useVideoConfig} from "remotion";
 import {z} from "zod";
 
 const FPS = 30;
-const INTRO_FRAMES = 150;
-const CARD_FRAMES = 42;
-const DEFAULT_GOAL_SECONDS = 8;
+const INTRO_FRAMES = 156;
+const DEFAULT_GOAL_SECONDS = 12;
+const SNAP_AMER_LOGO = "https://personal-tactic-motion.8kospi.easypanel.host/assets/snapamer.webp";
+const STADIUM_BG = "https://personal-tactic-motion.8kospi.easypanel.host/assets/match_presentation_stadium_locked.jpg";
 
 const goalSchema = z.object({
   minute: z.union([z.string(), z.number()]).optional(),
@@ -32,6 +24,10 @@ const goalSchema = z.object({
   awayScoreAfter: z.number().optional(),
   videoUrl: z.string().optional(),
   durationInSeconds: z.number().optional(),
+  clipDurationSeconds: z.number().optional(),
+  videoStartSeconds: z.number().optional(),
+  clipStartSeconds: z.number().optional(),
+  teamColor: z.string().optional(),
 }).passthrough();
 
 export const tacticGoalReelSchema = z.object({
@@ -58,147 +54,117 @@ export const tacticGoalReelSchema = z.object({
 
 export type TacticGoalReelProps = z.infer<typeof tacticGoalReelSchema>;
 
-export const defaultGoalReelProps: TacticGoalReelProps = {
-  compositionId: "TacticGoalReel",
-  gameId: 0,
-  homeTeam: "الفريق الأول",
-  awayTeam: "الفريق الثاني",
-  competitionName: "",
-  venue: "",
-  matchDate: "",
-  kickoffTime: "",
-  roundName: "",
-  homeScore: 0,
-  awayScore: 0,
-  goals: [],
-  assets: {},
+export const defaultGoalReelProps:TacticGoalReelProps = {
+  compositionId:"TacticGoalReel", gameId:0, homeTeam:"النصر", awayTeam:"نيوم",
+  competitionName:"الدوري السعودي", venue:"", matchDate:"", kickoffTime:"", roundName:"",
+  homeScore:0, awayScore:0, goals:[], assets:{}
 };
 
-const txt = (v: unknown, fallback = "") => String(v ?? fallback).trim();
-const num = (v: unknown, fallback = 0) => {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : fallback;
+const font='"Thmanyah Sans", sans-serif';
+const txt=(v:unknown,f="")=>String(v??f).trim();
+const num=(v:unknown,f=0)=>{const n=Number(v);return Number.isFinite(n)?n:f};
+const homeTeam=(p:TacticGoalReelProps)=>txt(p.homeTeam||p.match?.home?.name||p.match?.home_team_name_ar||p.match?.home_team_name,"الفريق الأول");
+const awayTeam=(p:TacticGoalReelProps)=>txt(p.awayTeam||p.match?.away?.name||p.match?.away_team_name_ar||p.match?.away_team_name,"الفريق الثاني");
+const homeScore=(p:TacticGoalReelProps)=>num(p.homeScore??p.score?.home??p.match?.home_score,0);
+const awayScore=(p:TacticGoalReelProps)=>num(p.awayScore??p.score?.away??p.match?.away_score,0);
+const competition=(p:TacticGoalReelProps)=>txt(p.competitionName||p.match?.competition_name_ar||p.match?.competition_name||p.match?.competition?.name);
+const venue=(p:TacticGoalReelProps)=>txt(p.venueName||p.venue||p.stadium||p.match?.venue_name_ar||p.match?.venue_name||p.match?.venue?.name);
+const matchDate=(p:TacticGoalReelProps)=>txt(p.matchDate||p.match?.match_date_ar||p.startTime||p.match?.start_time||p.match?.startTime);
+const round=(p:TacticGoalReelProps)=>txt(p.roundName||p.match?.round_name_ar||p.match?.round_name||(p.roundNum?`الجولة ${p.roundNum}`:p.match?.round_num?`الجولة ${p.match.round_num}`:""));
+
+const goalSeconds=(g:any)=>{
+  const d=Number(g?.clipDurationSeconds??g?.durationInSeconds??g?.duration);
+  return Number.isFinite(d)&&d>0?Math.min(14,Math.max(5,d)):DEFAULT_GOAL_SECONDS;
+};
+const startSeconds=(g:any)=>{
+  const explicit=Number(g?.clipStartSeconds);
+  if(Number.isFinite(explicit)&&explicit>0)return explicit;
+  const old=Number(g?.videoStartSeconds);
+  if(Number.isFinite(old)&&old>0)return old;
+  return 5.5;
+};
+const teamAccent=(p:TacticGoalReelProps,g:any)=>{
+  if(g?.teamColor)return g.teamColor;
+  const t=txt(g?.teamName||g?.team||g?.team_name_ar||g?.team_name).toLowerCase();
+  if(t.includes("النصر")||t.includes("nassr"))return "#F4D019";
+  if(t.includes("نيوم")||t.includes("neom"))return "#2EA3E0";
+  if(t&&t===homeTeam(p).toLowerCase())return p.assets?.homePrimaryColor||"#F4D019";
+  if(t&&t===awayTeam(p).toLowerCase())return p.assets?.awayPrimaryColor||"#2EA3E0";
+  return "#D9B45A";
 };
 
-const getHomeTeam = (p:TacticGoalReelProps) =>
-  txt(p.homeTeam || p.match?.home?.name || p.match?.home_team_name_ar || p.match?.home_team_name, "الفريق الأول");
-const getAwayTeam = (p:TacticGoalReelProps) =>
-  txt(p.awayTeam || p.match?.away?.name || p.match?.away_team_name_ar || p.match?.away_team_name, "الفريق الثاني");
-const getHomeScore = (p:TacticGoalReelProps) =>
-  num(p.homeScore ?? p.score?.home ?? p.score?.homeScore ?? p.match?.home_score, 0);
-const getAwayScore = (p:TacticGoalReelProps) =>
-  num(p.awayScore ?? p.score?.away ?? p.score?.awayScore ?? p.match?.away_score, 0);
-const getCompetition = (p:TacticGoalReelProps) =>
-  txt(p.competitionName || p.match?.competition_name_ar || p.match?.competition_name || p.match?.competition?.name);
-const getVenue = (p:TacticGoalReelProps) =>
-  txt(p.venueName || p.venue || p.stadium || p.match?.venue_name_ar || p.match?.venue_name || p.match?.venue?.name);
-const getDate = (p:TacticGoalReelProps) =>
-  txt(p.matchDate || p.startTime || p.match?.start_time || p.match?.startTime);
-const getKickoff = (p:TacticGoalReelProps) => txt(p.kickoffTime || p.match?.kickoff_time);
-const getRound = (p:TacticGoalReelProps) =>
-  txt(p.roundName || p.match?.round_name_ar || p.match?.round_name || (p.roundNum ? `الجولة ${p.roundNum}` : p.match?.round_num ? `الجولة ${p.match.round_num}` : ""));
-
-const goalSeconds = (goal:any) => {
-  const d = Number(goal?.durationInSeconds ?? goal?.clipDurationSeconds ?? goal?.duration);
-  return Number.isFinite(d) && d > 0 ? Math.min(20, Math.max(3, d)) : DEFAULT_GOAL_SECONDS;
+export const calculateGoalReelDuration=(p:TacticGoalReelProps)=>{
+  const goals=(p.goals||[]).filter((g:any)=>g?.videoUrl);
+  return INTRO_FRAMES+goals.reduce((s:number,g:any)=>s+Math.round(goalSeconds(g)*FPS),0);
 };
 
-export const calculateGoalReelDuration = (p:TacticGoalReelProps) => {
-  const goals = Array.isArray(p.goals) ? p.goals.filter((g:any)=>g?.videoUrl) : [];
-  return INTRO_FRAMES + goals.reduce((sum:any,g:any)=>sum + CARD_FRAMES + Math.round(goalSeconds(g)*FPS), 0);
-};
-
-const bg = "#070A0F";
-const gold = "#D9B45A";
-const white = "#F6F7F9";
-const muted = "#AEB4C0";
-const font = '"Thmanyah Sans", sans-serif';
-
-const Intro:React.FC<{p:TacticGoalReelProps}> = ({p}) => {
-  const frame = useCurrentFrame();
-  const {fps} = useVideoConfig();
-  const enter = spring({frame,fps,config:{damping:18,stiffness:120}});
-  const homeBadge = p.assets?.homeBadgeUrl || p.match?.home?.badgeUrl;
-  const awayBadge = p.assets?.awayBadgeUrl || p.match?.away?.badgeUrl;
-  const competitionLogo = p.assets?.competitionLogoUrl;
-  const score = `${getHomeScore(p)}  —  ${getAwayScore(p)}`;
-  const meta = [getRound(p), getVenue(p), getDate(p), getKickoff(p)].filter(Boolean);
-
-  return <AbsoluteFill style={{background:bg,color:white,fontFamily:font,direction:"rtl",overflow:"hidden"}}>
-    <div style={{position:"absolute",inset:0,background:"radial-gradient(circle at 50% 18%,rgba(217,180,90,.17),transparent 38%),linear-gradient(180deg,#0D121B 0%,#05070B 100%)"}}/>
-    <div style={{position:"absolute",top:78,left:64,right:64,display:"flex",justifyContent:"center",alignItems:"center",gap:22,opacity:enter}}>
-      {competitionLogo ? <Img src={competitionLogo} style={{height:94,maxWidth:210,objectFit:"contain"}}/> : null}
-      <div style={{fontSize:34,fontWeight:700,color:muted,textAlign:"center"}}>{getCompetition(p)}</div>
+const Intro:React.FC<{p:TacticGoalReelProps}>=({p})=>{
+  const frame=useCurrentFrame(); const {fps}=useVideoConfig();
+  const enter=spring({frame,fps,config:{damping:18,stiffness:120}});
+  const hb=p.assets?.homeBadgeUrl||p.match?.home?.badgeUrl;
+  const ab=p.assets?.awayBadgeUrl||p.match?.away?.badgeUrl;
+  const cl=p.assets?.competitionLogoUrl;
+  return <AbsoluteFill style={{background:"#050607",color:"white",fontFamily:font,direction:"rtl",overflow:"hidden"}}>
+    <Img src={p.assets?.stadiumBackgroundUrl||STADIUM_BG} style={{position:"absolute",inset:-35,width:"115%",height:"115%",objectFit:"cover",filter:"blur(10px) brightness(.28) saturate(.8)",transform:"scale(1.05)"}}/>
+    <div style={{position:"absolute",inset:0,background:"linear-gradient(180deg,rgba(2,4,8,.35),rgba(1,3,5,.72))"}}/>
+    <Img src={p.assets?.brandLogoUrl||SNAP_AMER_LOGO} style={{position:"absolute",top:38,left:"50%",width:150,height:150,objectFit:"contain",transform:"translateX(-50%)"}}/>
+    <div style={{position:"absolute",top:205,left:0,right:0,textAlign:"center",fontSize:46,fontWeight:800}}>{competition(p)}</div>
+    <div style={{position:"absolute",top:270,left:0,right:0,textAlign:"center",fontSize:34,fontWeight:800,color:"#D9B45A"}}>{round(p)}</div>
+    <div style={{position:"absolute",top:350,left:0,right:0,textAlign:"center",fontSize:58,fontWeight:900}}>المواجهة</div>
+    {cl?<Img src={cl} style={{position:"absolute",top:430,left:"50%",width:135,height:135,objectFit:"contain",transform:"translateX(-50%)"}}/>:null}
+    <div style={{position:"absolute",top:600,left:80,right:80,display:"grid",gridTemplateColumns:"1fr 1fr",gap:110,opacity:enter}}>
+      <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:18}}>{hb?<Img src={hb} style={{width:235,height:235,objectFit:"contain"}}/>:null}<div style={{fontSize:52,fontWeight:900}}>{homeTeam(p)}</div></div>
+      <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:18}}>{ab?<Img src={ab} style={{width:235,height:235,objectFit:"contain"}}/>:null}<div style={{fontSize:52,fontWeight:900}}>{awayTeam(p)}</div></div>
     </div>
-    <div style={{position:"absolute",top:330,left:70,right:70,display:"grid",gridTemplateColumns:"1fr 230px 1fr",alignItems:"center",gap:24,transform:`scale(${.92+.08*enter})`,opacity:enter}}>
-      <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:26}}>
-        {homeBadge ? <Img src={homeBadge} style={{width:220,height:220,objectFit:"contain"}}/> : <div style={{width:180,height:180,borderRadius:"50%",border:`2px solid ${gold}`}}/>}
-        <div style={{fontSize:46,fontWeight:900,textAlign:"center",lineHeight:1.1}}>{getHomeTeam(p)}</div>
-      </div>
-      <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:12}}>
-        <div style={{fontSize:112,fontWeight:900,letterSpacing:-4,color:gold,direction:"ltr"}}>{score}</div>
-        <div style={{height:3,width:160,background:gold,opacity:.7}}/>
-        <div style={{fontSize:26,color:muted}}>النتيجة النهائية</div>
-      </div>
-      <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:26}}>
-        {awayBadge ? <Img src={awayBadge} style={{width:220,height:220,objectFit:"contain"}}/> : <div style={{width:180,height:180,borderRadius:"50%",border:`2px solid ${gold}`}}/>}
-        <div style={{fontSize:46,fontWeight:900,textAlign:"center",lineHeight:1.1}}>{getAwayTeam(p)}</div>
+    <div style={{position:"absolute",top:955,left:0,right:0,textAlign:"center",fontSize:34,fontWeight:700}}>{matchDate(p)}</div>
+    <div style={{position:"absolute",top:1080,left:55,right:55,height:430,border:"1px solid rgba(217,180,90,.38)",background:"rgba(0,0,0,.45)",padding:"38px 52px"}}>
+      <div style={{fontSize:48,fontWeight:900,textAlign:"center",marginBottom:44}}>معلومات المباراة</div>
+      <div style={{display:"grid",gridTemplateColumns:"170px 1fr",alignItems:"center",rowGap:50,fontSize:34}}>
+        <div style={{color:"#D9B45A",fontWeight:800}}>الملعب</div><div style={{fontWeight:700}}>{venue(p)}</div>
+        <div style={{color:"#D9B45A",fontWeight:800}}>النتيجة النهائية</div><div style={{fontSize:70,fontWeight:900,direction:"ltr"}}>{homeScore(p)} - {awayScore(p)}</div>
       </div>
     </div>
-    <div style={{position:"absolute",bottom:190,left:80,right:80,display:"flex",flexDirection:"column",gap:18,alignItems:"center",opacity:interpolate(frame,[55,95],[0,1],{extrapolateLeft:"clamp",extrapolateRight:"clamp"})}}>
-      {meta.map((m,i)=><div key={i} style={{fontSize:i===1?34:30,fontWeight:i===1?700:500,color:i===1?white:muted,textAlign:"center"}}>{m}</div>)}
-    </div>
-  </AbsoluteFill>;
-};
-
-const GoalCard:React.FC<{p:TacticGoalReelProps;goal:any;index:number}> = ({p,goal,index}) => {
-  const frame = useCurrentFrame();
-  const {fps} = useVideoConfig();
-  const enter = spring({frame,fps,config:{damping:20,stiffness:170}});
-  const minuteRaw = txt(goal.minute || goal.time || goal.goalMinute, "—");
-  const added = txt(goal.addedTime || goal.added_time);
-  const minute = added ? `${minuteRaw}+${added}'` : /'/.test(minuteRaw) ? minuteRaw : `${minuteRaw}'`;
-  const scorer = txt(goal.scorerName || goal.scorer || goal.player_name_ar || goal.playerName || goal.player_name, `الهدف ${index+1}`);
-  const team = txt(goal.teamName || goal.team || goal.team_name_ar || goal.team_name);
-  let score = txt(goal.scoreAfter || goal.score);
-  if (!score && Number.isFinite(Number(goal.homeScoreAfter)) && Number.isFinite(Number(goal.awayScoreAfter))) score = `${goal.homeScoreAfter} — ${goal.awayScoreAfter}`;
-  return <AbsoluteFill style={{background:bg,color:white,fontFamily:font,direction:"rtl",display:"flex",alignItems:"center",justifyContent:"center"}}>
-    <div style={{position:"absolute",inset:0,background:"linear-gradient(135deg,rgba(217,180,90,.16),transparent 45%),radial-gradient(circle at 80% 20%,rgba(255,255,255,.06),transparent 32%)"}}/>
-    <div style={{width:860,borderTop:`3px solid ${gold}`,borderBottom:`1px solid rgba(217,180,90,.35)`,padding:"54px 30px 58px",display:"flex",flexDirection:"column",alignItems:"center",gap:22,transform:`translateY(${(1-enter)*55}px)`,opacity:enter}}>
-      <div style={{fontSize:82,fontWeight:900,color:gold,direction:"ltr"}}>{minute}</div>
-      <div style={{fontSize:62,fontWeight:900,textAlign:"center",lineHeight:1.05}}>{scorer}</div>
-      {team ? <div style={{fontSize:34,fontWeight:500,color:muted}}>{team}</div> : null}
-      {score ? <div style={{fontSize:72,fontWeight:900,direction:"ltr",marginTop:8}}>{score}</div> : null}
-      <div style={{fontSize:24,color:muted,marginTop:8}}>الهدف {index+1}</div>
-    </div>
-  </AbsoluteFill>;
-};
-
-const GoalVideo:React.FC<{goal:any}> = ({goal}) => (
-  <AbsoluteFill style={{background:"#000"}}>
-    <Video
-      src={goal.videoUrl}
-      startFrom={Math.max(0,Math.round(num(goal.videoStartSeconds ?? goal.clipStartSeconds,0)*FPS))}
-      volume={1}
-      style={{width:"100%",height:"100%",objectFit:"cover"}}
-    />
   </AbsoluteFill>
-);
+};
 
-export const TacticGoalReel:React.FC<TacticGoalReelProps> = (p) => {
-  const goals = (Array.isArray(p.goals) ? p.goals : []).filter((g:any)=>g?.videoUrl);
-  let cursor = INTRO_FRAMES;
-  return <AbsoluteFill style={{background:bg}}>
+const GoalScene:React.FC<{p:TacticGoalReelProps;goal:any;index:number}>=({p,goal,index})=>{
+  const accent=teamAccent(p,goal);
+  const minuteRaw=txt(goal.minute||goal.time||goal.goalMinute,"—");
+  const added=txt(goal.addedTime||goal.added_time);
+  const minute=added?`${minuteRaw}+${added}′`:`${minuteRaw.replace(/[′']/g,"")}′`;
+  const scorer=txt(goal.scorerName||goal.scorer||goal.player_name_ar||goal.playerName||goal.player_name,`الهدف ${index+1}`);
+  const team=txt(goal.teamName||goal.team||goal.team_name_ar||goal.team_name);
+  let score=txt(goal.scoreAfter||goal.score);
+  if(!score&&Number.isFinite(Number(goal.homeScoreAfter))&&Number.isFinite(Number(goal.awayScoreAfter)))score=`${goal.homeScoreAfter} - ${goal.awayScoreAfter}`;
+  const badge=(team===homeTeam(p)||team.toLowerCase().includes("nassr")||team.includes("النصر"))?(p.assets?.homeBadgeUrl||p.match?.home?.badgeUrl):(p.assets?.awayBadgeUrl||p.match?.away?.badgeUrl);
+  const s=startSeconds(goal);
+  return <AbsoluteFill style={{background:"#020304",fontFamily:font,color:"white",overflow:"hidden"}}>
+    <Video src={goal.videoUrl} startFrom={Math.round(s*FPS)} volume={1} style={{position:"absolute",inset:-70,width:"114%",height:"114%",objectFit:"cover",filter:"blur(28px) brightness(.42) saturate(.9)",transform:"scale(1.08)"}}/>
+    <div style={{position:"absolute",inset:0,background:"rgba(0,0,0,.24)"}}/>
+    <Img src={p.assets?.brandLogoUrl||SNAP_AMER_LOGO} style={{position:"absolute",top:28,left:"50%",width:130,height:130,objectFit:"contain",transform:"translateX(-50%)",zIndex:5}}/>
+    <div style={{position:"absolute",top:165,left:160,width:760,height:1280,overflow:"hidden",boxShadow:"0 20px 60px rgba(0,0,0,.55)",zIndex:3}}>
+      <Video src={goal.videoUrl} startFrom={Math.round(s*FPS)} volume={0} style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+    </div>
+    <div style={{position:"absolute",left:45,right:45,bottom:95,height:355,background:"rgba(2,3,5,.88)",borderTop:`6px solid ${accent}`,zIndex:6,padding:"46px 48px",display:"grid",gridTemplateColumns:"300px 1fr",direction:"ltr"}}>
+      <div style={{position:"relative",direction:"ltr"}}>
+        <div style={{fontSize:88,fontWeight:900,lineHeight:1}}>{minute}</div>
+        <div style={{fontSize:48,fontWeight:900,color:accent,marginTop:32}}>{score||""}</div>
+        {badge?<Img src={badge} style={{position:"absolute",left:150,top:112,width:94,height:94,objectFit:"contain"}}/>:null}
+      </div>
+      <div style={{direction:"rtl",textAlign:"right",paddingTop:8}}>
+        <div style={{fontSize:31,color:"#D2D5DB",fontWeight:700}}>الهدف {index+1===1?"الأول":index+1}</div>
+        <div style={{fontSize:62,fontWeight:900,lineHeight:1.15,marginTop:22}}>{scorer}</div>
+        <div style={{fontSize:38,fontWeight:900,color:accent,marginTop:18}}>{team}</div>
+      </div>
+    </div>
+  </AbsoluteFill>
+};
+
+export const TacticGoalReel:React.FC<TacticGoalReelProps>=(p)=>{
+  const goals=(Array.isArray(p.goals)?p.goals:[]).filter((g:any)=>g?.videoUrl);
+  let cursor=INTRO_FRAMES;
+  return <AbsoluteFill style={{background:"#020304"}}>
     <Sequence from={0} durationInFrames={INTRO_FRAMES}><Intro p={p}/></Sequence>
-    {goals.map((goal:any,index:number)=>{
-      const cardStart = cursor;
-      const clipFrames = Math.round(goalSeconds(goal)*FPS);
-      const clipStart = cardStart + CARD_FRAMES;
-      cursor = clipStart + clipFrames;
-      return <React.Fragment key={`${index}-${goal.videoUrl}`}>
-        <Sequence from={cardStart} durationInFrames={CARD_FRAMES}><GoalCard p={p} goal={goal} index={index}/></Sequence>
-        <Sequence from={clipStart} durationInFrames={clipFrames}><GoalVideo goal={goal}/></Sequence>
-      </React.Fragment>;
-    })}
-  </AbsoluteFill>;
+    {goals.map((goal:any,index:number)=>{const frames=Math.round(goalSeconds(goal)*FPS);const from=cursor;cursor+=frames;return <Sequence key={`${index}-${goal.videoUrl}`} from={from} durationInFrames={frames}><GoalScene p={p} goal={goal} index={index}/></Sequence>})}
+  </AbsoluteFill>
 };
