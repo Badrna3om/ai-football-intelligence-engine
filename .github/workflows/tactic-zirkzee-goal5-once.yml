@@ -10,8 +10,8 @@ permissions:
 
 jobs:
   fetch-upload:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
+    runs-on: macos-latest
+    timeout-minutes: 12
     steps:
       - name: Fetch official TUDN clip and upload to motion assets
         shell: bash
@@ -22,10 +22,7 @@ jobs:
           BODY=$(curl -sSL --max-time 30 -A 'Mozilla/5.0' "$AUTH")
           echo "$BODY" | head -c 1200
           echo
-          HLS=$(printf '%s' "$BODY" | python3 -c 'import sys,json; s=sys.stdin.read();
-try:
- j=json.loads(s); print(j.get("url") or j.get("signedUrl") or j.get("secureUrl") or j.get("streamUrl") or j.get("playbackUrl") or "")
-except Exception: print("")')
+          HLS=$(printf '%s' "$BODY" | python3 -c 'import sys,json; s=sys.stdin.read(); j=json.loads(s); print(j.get("url") or j.get("signedUrl") or j.get("secureUrl") or j.get("streamUrl") or j.get("playbackUrl") or "")' 2>/dev/null)
           if [ -z "$HLS" ]; then
             HLS=$(printf '%s' "$BODY" | grep -Eo 'https?[^" ]+\.m3u8[^" ]*' | head -1)
           fi
@@ -34,9 +31,10 @@ except Exception: print("")')
             echo 'RESULT=no_hls'
             exit 0
           fi
+          command -v ffmpeg >/dev/null 2>&1 || brew install ffmpeg
           ffmpeg -hide_banner -loglevel warning -y -i "$HLS" -t 22 -c:v libx264 -preset veryfast -crf 20 -c:a aac -b:a 160k goal5.mp4
           if [ ! -s goal5.mp4 ]; then echo 'RESULT=ffmpeg_failed'; exit 0; fi
-          echo "SIZE=$(stat -c%s goal5.mp4)"
+          echo "SIZE=$(stat -f%z goal5.mp4)"
           RESP=$(curl -sS -X POST \
             -H 'Content-Type: video/mp4' \
             -H 'x-tactic-asset-name: como__manchester-united__goal_5__zirkzee.mp4' \
