@@ -15,7 +15,7 @@ OBJECT_KEY="${OBJECT_KEY:-raw/${REQUEST_ID}/${FILE_NAME}}"
 mkdir -p work
 OUT="work/${FILE_NAME}"
 
-# X/Twitter is resolved and downloaded in the cloud. No FastSaver dependency.
+# Resolve and download X/Twitter media in the cloud.
 yt-dlp \
   --no-playlist \
   --no-warnings \
@@ -48,23 +48,91 @@ VIDEO_CODEC=$(ffprobe -v error -select_streams v:0 -show_entries stream=codec_na
 AUDIO_CODEC=$(ffprobe -v error -select_streams a:0 -show_entries stream=codec_name -of default=nw=1:nk=1 "$OUT" 2>/dev/null || true)
 SHA256=$(sha256sum "$OUT" | awk '{print $1}')
 
-export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
-export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
-export AWS_DEFAULT_REGION="auto"
+# Upload directly to Cloudflare R2 using an AWS SigV4 signed PUT.
+# This avoids installing awscli/boto3 on every GitHub runner.
+export OUT MIME_TYPE OBJECT_KEY
+python3 - <<'PY'
+import datetime
+import hashlib
+import hmac
+import os
+import urllib.parse
+import urllib.request
 
-aws s3 cp "$OUT" "s3://${R2_BUCKET}/${OBJECT_KEY}" \
-  --endpoint-url "$R2_ENDPOINT" \
-  --content-type "${MIME_TYPE:-video/mp4}" \
-  --only-show-errors
+endpoint = os.environ['R2_ENDPOINT'].rstrip('/')
+bucket = os.environ['R2_BUCKET']
+key = os.environ['OBJECT_KEY'].lstrip('/')
+access = os.environ['R2_ACCESS_KEY_ID']
+secret = os.environ['R2_SECRET_ACCESS_KEY']
+file_path = os.environ['OUT']
+content_type = os.environ.get('MIME_TYPE') or 'video/mp4'
+region = 'auto'
+service = 's3'
+
+u = urllib.parse.urlparse(endpoint)
+host = u.netloc
+encoded_key = '/'.join(urllib.parse.quote(part, safe='-_.~') for part in key.split('/'))
+canonical_uri = f'/{bucket}/{encoded_key}'
+url = f'{u.scheme}://{host}{canonical_uri}'
+
+with open(file_path, 'rb') as f:
+    body = f.read()
+payload_hash = hashlib.sha256(body).hexdigest()
+now = datetime.datetime.now(datetime.timezone.utc)
+amz_date = now.strftime('%Y%m%dT%H%M%SZ')
+date_stamp = now.strftime('%Y%m%d')
+
+canonical_headers = (
+    f'content-type:{content_type}\n'
+    f'host:{host}\n'
+    f'x-amz-content-sha256:{payload_hash}\n'
+    f'x-amz-date:{amz_date}\n'
+)
+signed_headers = 'content-type;host;x-amz-content-sha256;x-amz-date'
+canonical_request = '\n'.join([
+    'PUT', canonical_uri, '', canonical_headers, signed_headers, payload_hash
+])
+credential_scope = f'{date_stamp}/{region}/{service}/aws4_request'
+string_to_sign = '\n'.join([
+    'AWS4-HMAC-SHA256', amz_date, credential_scope,
+    hashlib.sha256(canonical_request.encode()).hexdigest(),
+])
+
+def sign(key_bytes, msg):
+    return hmac.new(key_bytes, msg.encode(), hashlib.sha256).digest()
+
+k_date = sign(('AWS4' + secret).encode(), date_stamp)
+k_region = sign(k_date, region)
+k_service = sign(k_region, service)
+k_signing = sign(k_service, 'aws4_request')
+signature = hmac.new(k_signing, string_to_sign.encode(), hashlib.sha256).hexdigest()
+authorization = (
+    f'AWS4-HMAC-SHA256 Credential={access}/{credential_scope}, '
+    f'SignedHeaders={signed_headers}, Signature={signature}'
+)
+
+req = urllib.request.Request(url, data=body, method='PUT', headers={
+    'Content-Type': content_type,
+    'Host': host,
+    'x-amz-content-sha256': payload_hash,
+    'x-amz-date': amz_date,
+    'Authorization': authorization,
+})
+try:
+    with urllib.request.urlopen(req, timeout=180) as response:
+        if not 200 <= response.status < 300:
+            raise RuntimeError(f'R2 upload HTTP {response.status}')
+        print(f'R2 upload OK: HTTP {response.status}')
+except Exception as exc:
+    raise SystemExit(f'R2 upload failed: {exc}')
+PY
 
 PUBLIC_BASE="${R2_PUBLIC_URL:-${R2_PUBLIC_BASE_URL:-}}"
-if [ -n "$PUBLIC_BASE" ]; then
-  STORAGE_URL="${PUBLIC_BASE%/}/${OBJECT_KEY}"
-else
-  STORAGE_URL=$(aws s3 presign "s3://${R2_BUCKET}/${OBJECT_KEY}" --endpoint-url "$R2_ENDPOINT" --expires-in 604800)
+if [ -z "$PUBLIC_BASE" ]; then
+  echo "R2_PUBLIC_URL is required for callback storage URL" >&2
+  exit 22
 fi
-
-[ -n "$STORAGE_URL" ] || { echo "Unable to create R2 access URL" >&2; exit 22; }
+STORAGE_URL="${PUBLIC_BASE%/}/${OBJECT_KEY}"
 
 jq -n \
   --arg request_id "$REQUEST_ID" \
