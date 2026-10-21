@@ -50,6 +50,25 @@ jobs:
           cd motion-renderer
           npm install --no-audit --no-fund
 
+      - name: Hydrate full goal clip durations
+        shell: bash
+        run: |
+          set -euo pipefail
+          count="$(jq '.goals | length' render-payload.json)"
+          for ((i=0; i<count; i++)); do
+            url="$(jq -r ".goals[$i].videoUrl" render-payload.json)"
+            duration="$(ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 "$url" | head -1)"
+            python3 - "$i" "$duration" <<'PY'
+          import json,sys
+          idx=int(sys.argv[1]); duration=float(sys.argv[2])
+          p='render-payload.json'
+          data=json.load(open(p))
+          data['goals'][idx]['durationInSeconds']=max(6.0,min(45.0,duration))
+          with open(p,'w') as f: json.dump(data,f,ensure_ascii=False)
+          PY
+          done
+          jq '.goals | map({minute, scorer, scoreAfter, durationInSeconds})' render-payload.json
+
       - name: Render Goal Reel
         shell: bash
         run: |
