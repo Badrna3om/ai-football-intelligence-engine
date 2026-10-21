@@ -113,13 +113,13 @@ const Intro:React.FC<{p:SnapAmerGoalReelProps}> = ({p}) => {
       <div style={{position:"absolute",top:236,left:0,right:0,textAlign:"center",fontSize:24,color:GOLD,fontWeight:700}}>{p.round || ""}</div>
       <div style={{position:"absolute",top:295,left:0,right:0,textAlign:"center",fontSize:54,fontWeight:900}}>المواجهة</div>
 
-      <div style={{position:"absolute",top:430,left:80,right:80,display:"grid",gridTemplateColumns:"1fr 90px 1fr",alignItems:"center",transform:`translateY(${(1-enter)*35}px)`,opacity:enter}}>
-        <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:24}}>
+      <div style={{position:"absolute",top:430,left:80,right:80,display:"grid",gridTemplateColumns:"1fr 90px 1fr",alignItems:"center",direction:"ltr",transform:`translateY(${(1-enter)*35}px)`,opacity:enter}}>
+        <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:24,direction:"rtl"}}>
           {p.homeBadgeUrl ? <Img src={p.homeBadgeUrl} style={{width:220,height:220,objectFit:"contain"}}/> : null}
           <div style={{fontSize:48,fontWeight:900}}>{p.homeTeam}</div>
         </div>
         <div style={{fontSize:52,fontWeight:700,textAlign:"center"}}>×</div>
-        <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:24}}>
+        <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:24,direction:"rtl"}}>
           {p.awayBadgeUrl ? <Img src={p.awayBadgeUrl} style={{width:220,height:220,objectFit:"contain"}}/> : null}
           <div style={{fontSize:48,fontWeight:900}}>{p.awayTeam}</div>
         </div>
@@ -150,12 +150,12 @@ const GoalLead:React.FC<{p:SnapAmerGoalReelProps;g:any;i:number}> = ({p,g,i}) =>
   const minute=g.displayMinute || `${g.minute}'`;
   return <AbsoluteFill style={{background:"#07090D",fontFamily:font,color:WHITE,direction:"rtl"}}>
     <div style={{position:"absolute",top:42,left:0,right:0}}><Brand p={p} small/></div>
-    <div style={{position:"absolute",left:52,right:52,bottom:210,borderTop:"3px solid rgba(143,75,216,.92)",paddingTop:38,display:"grid",gridTemplateColumns:"250px 1fr",gap:40,alignItems:"center",opacity:s,transform:`translateY(${(1-s)*32}px)`}}>
+    <div style={{position:"absolute",left:52,right:52,bottom:210,borderTop:"3px solid rgba(143,75,216,.92)",paddingTop:38,display:"grid",gridTemplateColumns:"250px 1fr",gap:40,alignItems:"center",direction:"ltr",opacity:s,transform:`translateY(${(1-s)*32}px)`}}>
       <div style={{textAlign:"center",direction:"ltr"}}>
         <div style={{fontSize:100,fontWeight:950}}>{minute}</div>
         <div style={{fontSize:42,fontWeight:900,color:GOLD,marginTop:12}}>{g.scoreAfter}</div>
       </div>
-      <div>
+      <div style={{direction:"rtl",textAlign:"right"}}>
         <div style={{fontSize:28,color:MUTED,marginBottom:12}}>{g.goalOrderLabel || `الهدف ${i+1}`}</div>
         <div style={{fontSize:56,fontWeight:950,lineHeight:1.05}}>{g.scorer}</div>
         <div style={{fontSize:31,fontWeight:800,color:"#8E4DE0",marginTop:13}}>{g.team}</div>
@@ -175,7 +175,7 @@ const GoalScene:React.FC<{p:SnapAmerGoalReelProps;g:any;i:number}> = ({p,g,i}) =
     <Video src={videoSrc} startFrom={startFrom} volume={1} style={{position:"absolute",top:350,left:0,width:"100%",height:610,objectFit:"cover",zIndex:2}}/>
     <div style={{position:"absolute",left:0,right:0,bottom:0,height:690,background:PANEL,zIndex:3,borderTop:"1px solid rgba(255,255,255,.08)"}}>
       <div style={{position:"absolute",top:118,left:52,right:52,height:3,background:"linear-gradient(90deg,#7442C8,#A45FF0)"}}/>
-      <div style={{position:"absolute",top:165,left:52,right:52,display:"grid",gridTemplateColumns:"250px 1fr",gap:42,alignItems:"center"}}>
+      <div style={{position:"absolute",top:165,left:52,right:52,display:"grid",gridTemplateColumns:"250px 1fr",gap:42,alignItems:"center",direction:"ltr"}}>
         <div style={{textAlign:"center",direction:"ltr"}}>
           <div style={{fontSize:104,fontWeight:950,lineHeight:.95}}>{minute}</div>
           <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:16,marginTop:20}}>
@@ -183,7 +183,7 @@ const GoalScene:React.FC<{p:SnapAmerGoalReelProps;g:any;i:number}> = ({p,g,i}) =
             <div style={{fontSize:45,fontWeight:900,color:GOLD}}>{g.scoreAfter}</div>
           </div>
         </div>
-        <div>
+        <div style={{direction:"rtl",textAlign:"right"}}>
           <div style={{fontSize:28,color:MUTED,marginBottom:14}}>{g.goalOrderLabel || `الهدف ${i+1}`}</div>
           <div style={{fontSize:58,fontWeight:950,lineHeight:1.08}}>{g.scorer}</div>
           <div style={{fontSize:32,fontWeight:900,color:"#8E4DE0",marginTop:14}}>{g.team}</div>
