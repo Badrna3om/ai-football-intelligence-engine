@@ -15,17 +15,21 @@ OBJECT_KEY="${OBJECT_KEY:-raw/${REQUEST_ID}/${FILE_NAME}}"
 mkdir -p work
 OUT="work/${FILE_NAME}"
 
-# Resolve and download X/Twitter media in the cloud.
+# X frequently blocks progressive video.twimg.com MP4 URLs with HTTP 403.
+# Its HLS manifest is still available, so prefer HLS and use yt-dlp's native
+# fragment downloader. Fall back to another format only if no HLS exists.
 yt-dlp \
   --no-playlist \
   --no-warnings \
   --socket-timeout 30 \
   --retries 3 \
-  --fragment-retries 3 \
+  --fragment-retries 5 \
+  --retry-sleep fragment:1 \
   --referer 'https://x.com/' \
   --user-agent 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/152.0.0.0 Safari/537.36' \
+  --hls-prefer-native \
   --merge-output-format mp4 \
-  -f 'bv*+ba/b[ext=mp4]/b' \
+  -f 'best[protocol^=m3u8]/best' \
   -o "$OUT" \
   "$SOURCE_URL"
 
