@@ -14,11 +14,13 @@ OBJECT_KEY="${OBJECT_KEY:-raw/${REQUEST_ID}/${FILE_NAME}}"
 
 mkdir -p work
 OUT="work/${FILE_NAME}"
+export OUT SOURCE_URL
 
-# X frequently blocks progressive video.twimg.com MP4 URLs with HTTP 403.
-# Its HLS manifest is still available, so prefer HLS and use yt-dlp's native
-# fragment downloader. Fall back to another format only if no HLS exists.
-yt-dlp \
+# Primary: yt-dlp. X sometimes returns HTTP 403 for the selected media URL.
+# Fallback: the SSSTwitter -> signed SSSCDN path that is already proven in our
+# motion pipeline. Keep the same OUT path so validation/upload below is shared.
+rm -f "$OUT"
+if ! yt-dlp \
   --no-playlist \
   --no-warnings \
   --socket-timeout 30 \
@@ -31,10 +33,14 @@ yt-dlp \
   --merge-output-format mp4 \
   -f 'best[protocol^=m3u8]/best' \
   -o "$OUT" \
-  "$SOURCE_URL"
+  "$SOURCE_URL"; then
+  echo "yt-dlp failed; trying SSSTwitter fallback" >&2
+  rm -f "$OUT"
+  python3 cloud-media-worker/download_sss.py "$SOURCE_URL" "$OUT"
+fi
 
 if [ ! -s "$OUT" ]; then
-  echo "yt-dlp returned no media" >&2
+  echo "download returned no media" >&2
   exit 20
 fi
 
