@@ -2,6 +2,9 @@ name: TACTIC Cloud Media Worker
 
 on:
   workflow_dispatch:
+  repository_dispatch:
+    types:
+      - tactic-cloud-video-download
 
 permissions:
   contents: read
