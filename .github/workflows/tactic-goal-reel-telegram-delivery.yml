@@ -55,8 +55,9 @@ jobs:
           mkdir -p delivery
           curl -fLsS --retry 5 --retry-delay 2 "$master_url" -o delivery/master.mp4
           test -s delivery/master.mp4
-          dims="$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 delivery/master.mp4 | head -1)"
-          [ "$dims" = "1080x1920" ] || { echo "Master dimensions are $dims, expected 1080x1920" >&2; exit 1; }
+          width="$(ffprobe -v error -select_streams v:0 -show_entries stream=width -of default=nw=1:nk=1 delivery/master.mp4 | head -1)"
+          height="$(ffprobe -v error -select_streams v:0 -show_entries stream=height -of default=nw=1:nk=1 delivery/master.mp4 | head -1)"
+          [ "$width" = "1080" ] && [ "$height" = "1920" ] || { echo "Master dimensions are ${width}x${height}, expected 1080x1920" >&2; exit 1; }
 
       - name: Build Telegram copy — preserve 1080x1920
         shell: bash
@@ -89,9 +90,10 @@ jobs:
             done
           fi
           test -s "$telegram"
-          dims="$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 "$telegram" | head -1)"
+          width="$(ffprobe -v error -select_streams v:0 -show_entries stream=width -of default=nw=1:nk=1 "$telegram" | head -1)"
+          height="$(ffprobe -v error -select_streams v:0 -show_entries stream=height -of default=nw=1:nk=1 "$telegram" | head -1)"
           size="$(stat -c%s "$telegram")"
-          [ "$dims" = "1080x1920" ] || { echo "Telegram copy dimensions changed to $dims" >&2; exit 1; }
+          [ "$width" = "1080" ] && [ "$height" = "1920" ] || { echo "Telegram copy dimensions changed to ${width}x${height}" >&2; exit 1; }
           [ "$size" -lt 49000000 ] || { echo "Telegram copy too large: $size" >&2; exit 1; }
           printf '{"gameId":%s,"sourceRunId":%s,"width":1080,"height":1920,"sizeBytes":%s}\n' "$game_id" "$source_run_id" "$size" | tee delivery/info.json
 
