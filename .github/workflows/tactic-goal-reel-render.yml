@@ -128,8 +128,9 @@ jobs:
           set -euo pipefail
           master="rendered/goal-reel.mp4"
           telegram="rendered/goal-reel-telegram.mp4"
-          dims="$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 "$master" | head -1)"
-          [ "$dims" = "1080x1920" ] || { echo "Master dimensions are $dims, expected 1080x1920" >&2; exit 1; }
+          width="$(ffprobe -v error -select_streams v:0 -show_entries stream=width -of default=nw=1:nk=1 "$master" | head -1)"
+          height="$(ffprobe -v error -select_streams v:0 -show_entries stream=height -of default=nw=1:nk=1 "$master" | head -1)"
+          [ "$width" = "1080" ] && [ "$height" = "1920" ] || { echo "Master dimensions are ${width}x${height}, expected 1080x1920" >&2; exit 1; }
           size="$(stat -c%s "$master")"
           if [ "$size" -lt 48000000 ]; then
             cp "$master" "$telegram"
@@ -155,11 +156,12 @@ jobs:
             done
           fi
           test -s "$telegram"
-          telegram_dims="$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 "$telegram" | head -1)"
+          telegram_width="$(ffprobe -v error -select_streams v:0 -show_entries stream=width -of default=nw=1:nk=1 "$telegram" | head -1)"
+          telegram_height="$(ffprobe -v error -select_streams v:0 -show_entries stream=height -of default=nw=1:nk=1 "$telegram" | head -1)"
           telegram_size="$(stat -c%s "$telegram")"
-          [ "$telegram_dims" = "1080x1920" ] || { echo "Telegram copy dimensions changed to $telegram_dims" >&2; exit 1; }
+          [ "$telegram_width" = "1080" ] && [ "$telegram_height" = "1920" ] || { echo "Telegram copy dimensions changed to ${telegram_width}x${telegram_height}" >&2; exit 1; }
           [ "$telegram_size" -lt 49000000 ] || { echo "Telegram copy too large: $telegram_size" >&2; exit 1; }
-          echo "Telegram delivery copy: ${telegram_dims}, ${telegram_size} bytes"
+          echo "Telegram delivery copy: ${telegram_width}x${telegram_height}, ${telegram_size} bytes"
 
       - name: Upload Goal Reel to Cloudflare R2
         shell: bash
