@@ -20,7 +20,7 @@ concurrency:
 jobs:
   render:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
 
@@ -122,6 +122,45 @@ jobs:
           jq -e '.format.size | tonumber > 100000' final-media-info.json >/dev/null
           jq -e '[.streams[] | select(.codec_type == "video")][0] | .width == 1080 and .height == 1920' final-stream-info.json >/dev/null
 
+      - name: Prepare Telegram copy — preserve 1080x1920
+        shell: bash
+        run: |
+          set -euo pipefail
+          master="rendered/goal-reel.mp4"
+          telegram="rendered/goal-reel-telegram.mp4"
+          dims="$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 "$master" | head -1)"
+          [ "$dims" = "1080x1920" ] || { echo "Master dimensions are $dims, expected 1080x1920" >&2; exit 1; }
+          size="$(stat -c%s "$master")"
+          if [ "$size" -lt 48000000 ]; then
+            cp "$master" "$telegram"
+          else
+            duration="$(ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 "$master" | head -1)"
+            for target_bytes in 45000000 42000000 39000000; do
+              video_bps="$(python3 - "$duration" "$target_bytes" <<'PY'
+          import sys
+          duration=max(float(sys.argv[1]),1.0)
+          target_bytes=int(sys.argv[2])
+          audio_bps=96000
+          safety_bps=24000
+          total_bps=(target_bytes*8)/duration
+          print(max(250000,int(total_bps-audio_bps-safety_bps)))
+          PY
+              )"
+              ffmpeg -hide_banner -loglevel error -y -i "$master" \
+                -map 0:v:0 -map '0:a?' \
+                -c:v libx264 -preset veryfast -b:v "$video_bps" -maxrate "$video_bps" -bufsize "$((video_bps*2))" \
+                -c:a aac -b:a 96k -pix_fmt yuv420p -movflags +faststart "$telegram"
+              out_size="$(stat -c%s "$telegram")"
+              [ "$out_size" -lt 49000000 ] && break
+            done
+          fi
+          test -s "$telegram"
+          telegram_dims="$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 "$telegram" | head -1)"
+          telegram_size="$(stat -c%s "$telegram")"
+          [ "$telegram_dims" = "1080x1920" ] || { echo "Telegram copy dimensions changed to $telegram_dims" >&2; exit 1; }
+          [ "$telegram_size" -lt 49000000 ] || { echo "Telegram copy too large: $telegram_size" >&2; exit 1; }
+          echo "Telegram delivery copy: ${telegram_dims}, ${telegram_size} bytes"
+
       - name: Upload Goal Reel to Cloudflare R2
         shell: bash
         env:
@@ -134,10 +173,15 @@ jobs:
         run: |
           set -euo pipefail
           object_key="game-${game_id}-${GITHUB_RUN_ID}-goal-reel.mp4"
+          telegram_key="game-${game_id}-${GITHUB_RUN_ID}-goal-reel-telegram.mp4"
           aws s3 cp rendered/goal-reel.mp4 "s3://${R2_BUCKET}/${object_key}" --endpoint-url "$R2_ENDPOINT" --content-type video/mp4 --cache-control "public,max-age=31536000,immutable" --only-show-errors
+          aws s3 cp rendered/goal-reel-telegram.mp4 "s3://${R2_BUCKET}/${telegram_key}" --endpoint-url "$R2_ENDPOINT" --content-type video/mp4 --cache-control "public,max-age=31536000,immutable" --only-show-errors
           result_url="${R2_PUBLIC_URL%/}/${object_key}"
+          telegram_url="${R2_PUBLIC_URL%/}/${telegram_key}"
           curl -fLsS --retry 5 --retry-delay 2 --range 0-0 -o /dev/null "$result_url"
-          printf '{"ok":true,"gameId":%s,"requestId":"%s","objectKey":"%s","resultUrl":"%s"}\n' "$game_id" "$request_id" "$object_key" "$result_url" | tee rendered/result.json
+          curl -fLsS --retry 5 --retry-delay 2 --range 0-0 -o /dev/null "$telegram_url"
+          telegram_size="$(stat -c%s rendered/goal-reel-telegram.mp4)"
+          printf '{"ok":true,"gameId":%s,"requestId":"%s","objectKey":"%s","resultUrl":"%s","telegramObjectKey":"%s","telegramResultUrl":"%s","telegramSizeBytes":%s}\n' "$game_id" "$request_id" "$object_key" "$result_url" "$telegram_key" "$telegram_url" "$telegram_size" | tee rendered/result.json
 
       - name: Upload diagnostic artifact
         if: ${{ always() }}
@@ -147,6 +191,7 @@ jobs:
           path: |
             render-payload.json
             rendered/goal-reel.mp4
+            rendered/goal-reel-telegram.mp4
             rendered/result.json
             final-media-info.json
             final-stream-info.json
