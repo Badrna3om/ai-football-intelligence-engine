@@ -45,9 +45,19 @@ jobs:
             sudo apt-get update -y
             sudo apt-get install -y $MISSING
           fi
-          sudo curl -fL --retry 3 --retry-delay 1 \
+
+          if ! sudo curl -fL --retry 3 --retry-delay 1 --connect-timeout 10 --max-time 45 \
             https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp \
-            -o /usr/local/bin/yt-dlp
+            -o /usr/local/bin/yt-dlp; then
+            echo 'GitHub yt-dlp binary download failed; using PyPI fallback' >&2
+            sudo rm -f /usr/local/bin/yt-dlp
+            sudo apt-get update -y
+            sudo apt-get install -y python3-pip
+            python3 -m pip install --user --break-system-packages --upgrade yt-dlp
+            test -x "$HOME/.local/bin/yt-dlp"
+            sudo install -m 0755 "$HOME/.local/bin/yt-dlp" /usr/local/bin/yt-dlp
+          fi
+
           sudo chmod 0755 /usr/local/bin/yt-dlp
           ffmpeg -version | head -1
           yt-dlp --version
