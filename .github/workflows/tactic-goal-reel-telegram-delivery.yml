@@ -1,0 +1,124 @@
+name: SNAP AMER Telegram Delivery
+run-name: SNAP AMER Telegram ${{ github.event.head_commit.message || github.run_id }}
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'delivery-requests/**.json'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: snap-amer-telegram-${{ github.event.head_commit.message || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  delivery:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare delivery request
+        shell: bash
+        run: |
+          set -euo pipefail
+          commit_message="$(jq -r '.head_commit.message // empty' "$GITHUB_EVENT_PATH")"
+          case "$commit_message" in
+            delivery-request:*) request_id="${commit_message#delivery-request:}" ;;
+            *) echo "Invalid delivery request commit message: $commit_message" >&2; exit 1 ;;
+          esac
+          request_file="delivery-requests/${request_id}.json"
+          test -s "$request_file"
+          game_id="$(jq -r '.gameId' "$request_file")"
+          source_run_id="$(jq -r '.sourceRunId' "$request_file")"
+          master_url="$(jq -r '.masterUrl' "$request_file")"
+          test -n "$game_id" && test -n "$source_run_id" && test -n "$master_url"
+          echo "request_id=${request_id}" >> "$GITHUB_ENV"
+          echo "game_id=${game_id}" >> "$GITHUB_ENV"
+          echo "source_run_id=${source_run_id}" >> "$GITHUB_ENV"
+          echo "master_url=${master_url}" >> "$GITHUB_ENV"
+
+      - name: Install ffmpeg
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ffmpeg
+
+      - name: Download completed master
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p delivery
+          curl -fLsS --retry 5 --retry-delay 2 "$master_url" -o delivery/master.mp4
+          test -s delivery/master.mp4
+          dims="$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 delivery/master.mp4 | head -1)"
+          [ "$dims" = "1080x1920" ] || { echo "Master dimensions are $dims, expected 1080x1920" >&2; exit 1; }
+
+      - name: Build Telegram copy — preserve 1080x1920
+        shell: bash
+        run: |
+          set -euo pipefail
+          master="delivery/master.mp4"
+          telegram="delivery/telegram.mp4"
+          size="$(stat -c%s "$master")"
+          if [ "$size" -lt 48000000 ]; then
+            cp "$master" "$telegram"
+          else
+            duration="$(ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 "$master" | head -1)"
+            for target_bytes in 45000000 42000000 39000000; do
+              video_bps="$(python3 - "$duration" "$target_bytes" <<'PY'
+          import sys
+          duration=max(float(sys.argv[1]),1.0)
+          target_bytes=int(sys.argv[2])
+          audio_bps=96000
+          safety_bps=24000
+          total_bps=(target_bytes*8)/duration
+          print(max(250000,int(total_bps-audio_bps-safety_bps)))
+          PY
+              )"
+              ffmpeg -hide_banner -loglevel error -y -i "$master" \
+                -map 0:v:0 -map '0:a?' \
+                -c:v libx264 -preset veryfast -b:v "$video_bps" -maxrate "$video_bps" -bufsize "$((video_bps*2))" \
+                -c:a aac -b:a 96k -pix_fmt yuv420p -movflags +faststart "$telegram"
+              out_size="$(stat -c%s "$telegram")"
+              [ "$out_size" -lt 49000000 ] && break
+            done
+          fi
+          test -s "$telegram"
+          dims="$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 "$telegram" | head -1)"
+          size="$(stat -c%s "$telegram")"
+          [ "$dims" = "1080x1920" ] || { echo "Telegram copy dimensions changed to $dims" >&2; exit 1; }
+          [ "$size" -lt 49000000 ] || { echo "Telegram copy too large: $size" >&2; exit 1; }
+          printf '{"gameId":%s,"sourceRunId":%s,"width":1080,"height":1920,"sizeBytes":%s}\n' "$game_id" "$source_run_id" "$size" | tee delivery/info.json
+
+      - name: Upload Telegram copy to Cloudflare R2
+        shell: bash
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_PUBLIC_URL: ${{ secrets.R2_PUBLIC_URL }}
+        run: |
+          set -euo pipefail
+          telegram_key="game-${game_id}-${source_run_id}-goal-reel-telegram.mp4"
+          aws s3 cp delivery/telegram.mp4 "s3://${R2_BUCKET}/${telegram_key}" --endpoint-url "$R2_ENDPOINT" --content-type video/mp4 --cache-control "public,max-age=31536000,immutable" --only-show-errors
+          telegram_url="${R2_PUBLIC_URL%/}/${telegram_key}"
+          curl -fLsS --retry 5 --retry-delay 2 --range 0-0 -o /dev/null "$telegram_url"
+          printf '{"ok":true,"gameId":%s,"sourceRunId":%s,"telegramResultUrl":"%s"}\n' "$game_id" "$source_run_id" "$telegram_url" | tee delivery/result.json
+
+      - name: Upload delivery diagnostic
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: snap-amer-telegram-${{ env.game_id }}-${{ env.source_run_id }}
+          path: |
+            delivery/info.json
+            delivery/result.json
+          retention-days: 3
+          if-no-files-found: ignore
