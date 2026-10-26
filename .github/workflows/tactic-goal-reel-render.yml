@@ -1,5 +1,5 @@
 name: SNAP AMER Goal Reel Render
-run-name: SNAP AMER Goal Reel ${{ github.event.client_payload.request_id || github.run_id }}
+run-name: SNAP AMER Goal Reel ${{ github.event.client_payload.request_id || github.event.head_commit.message || github.run_id }}
 
 on:
   repository_dispatch:
@@ -8,13 +8,13 @@ on:
   push:
     branches: [main]
     paths:
-      - .github/workflows/tactic-goal-reel-render.yml
+      - 'render-requests/**.json'
 
 permissions:
   contents: read
 
 concurrency:
-  group: snap-amer-goal-reel-${{ github.event.client_payload.request_id || github.run_id }}
+  group: snap-amer-goal-reel-${{ github.event.client_payload.request_id || github.event.head_commit.message || github.run_id }}
   cancel-in-progress: false
 
 jobs:
@@ -31,43 +31,23 @@ jobs:
           if [ "${GITHUB_EVENT_NAME}" = "repository_dispatch" ]; then
             jq -e '.client_payload.render_payload | type == "object"' "$GITHUB_EVENT_PATH" >/dev/null
             jq '.client_payload.render_payload' "$GITHUB_EVENT_PATH" > render-payload.json
+            request_id="$(jq -r '.client_payload.request_id // empty' "$GITHUB_EVENT_PATH")"
           else
-            cat > render-payload.json <<'JSON'
-          {
-            "compositionId":"TacticGoalReel",
-            "gameId":4789450,
-            "homeTeam":"النصر",
-            "awayTeam":"نيوم",
-            "competitionName":"الدوري السعودي",
-            "roundName":"الجولة 10",
-            "venueName":"استاد الملك فهد الدولي",
-            "matchDate":"20 أكتوبر 2026",
-            "homeScore":1,
-            "awayScore":0,
-            "assets":{
-              "brandLogoUrl":"https://personal-tactic-motion.8kospi.easypanel.host/assets/snapamer.webp",
-              "stadiumBackgroundUrl":"https://personal-tactic-motion.8kospi.easypanel.host/assets/match_presentation_stadium_locked.jpg",
-              "homeBadgeUrl":"https://personal-tactic-motion.8kospi.easypanel.host/assets/8bf0b19a-5266-4976-8f41-d8301ba1bcdf.png",
-              "awayBadgeUrl":"https://personal-tactic-motion.8kospi.easypanel.host/assets/3ac71dc7-26db-41a2-9ca3-7a5658520372.png",
-              "competitionLogoUrl":"https://personal-tactic-motion.8kospi.easypanel.host/assets/f8f159f3-ff00-4cdc-9f1b-70956063c278.png",
-              "homePrimaryColor":"#F4D019",
-              "awayPrimaryColor":"#2EA3E0"
-            },
-            "goals":[{
-              "minute":61,
-              "scorerName":"جواو فيليكس",
-              "teamName":"النصر",
-              "scoreAfter":"1 - 0",
-              "videoUrl":"https://personal-tactic-motion.8kospi.easypanel.host/assets/ddac7a42-52c3-4965-9102-6ea42662f48e.mp4",
-              "teamColor":"#F4D019"
-            }]
-          }
-          JSON
+            commit_message="$(jq -r '.head_commit.message // empty' "$GITHUB_EVENT_PATH")"
+            case "$commit_message" in
+              render-request:*) request_id="${commit_message#render-request:}" ;;
+              *) echo "Invalid render request commit message: $commit_message" >&2; exit 1 ;;
+            esac
+            request_file="render-requests/${request_id}.json"
+            test -s "$request_file"
+            jq -e '.render_payload | type == "object"' "$request_file" >/dev/null
+            jq '.render_payload' "$request_file" > render-payload.json
           fi
           jq -e '.gameId and (.goals | type == "array") and (.goals | length > 0)' render-payload.json >/dev/null
           jq -e '.goals as $goals | [$goals[] | select(.videoUrl != null and .videoUrl != "")] | length == ($goals | length)' render-payload.json >/dev/null
           game_id="$(jq -r '.gameId' render-payload.json)"
           composition_id="$(jq -r '.compositionId // "TacticGoalReel"' render-payload.json)"
+          echo "request_id=${request_id}" >> "$GITHUB_ENV"
           echo "game_id=${game_id}" >> "$GITHUB_ENV"
           echo "composition_id=${composition_id}" >> "$GITHUB_ENV"
 
@@ -157,7 +137,7 @@ jobs:
           aws s3 cp rendered/goal-reel.mp4 "s3://${R2_BUCKET}/${object_key}" --endpoint-url "$R2_ENDPOINT" --content-type video/mp4 --cache-control "public,max-age=31536000,immutable" --only-show-errors
           result_url="${R2_PUBLIC_URL%/}/${object_key}"
           curl -fLsS --retry 5 --retry-delay 2 --range 0-0 -o /dev/null "$result_url"
-          printf '{"ok":true,"gameId":%s,"objectKey":"%s","resultUrl":"%s"}\n' "$game_id" "$object_key" "$result_url" | tee rendered/result.json
+          printf '{"ok":true,"gameId":%s,"requestId":"%s","objectKey":"%s","resultUrl":"%s"}\n' "$game_id" "$request_id" "$object_key" "$result_url" | tee rendered/result.json
 
       - name: Upload diagnostic artifact
         if: ${{ always() }}
