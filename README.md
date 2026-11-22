@@ -1,6 +1,19 @@
+<p align="center"><strong>BADRELDIN — PRODUCTION AI PORTFOLIO</strong><br/><a href="https://github.com/Badrna3om">Profile</a> · <a href="https://github.com/Badrna3om/tactic-ai-media-platform">TACTIC / AMER</a> · <a href="https://github.com/Badrna3om/buaskoor-ai-commerce-platform">Commerce</a> · <a href="https://github.com/Badrna3om/ai-restaurant-operating-system">Restaurant</a> · <a href="https://github.com/Badrna3om/ai-content-automation-for-e-commerce">Marketing</a></p>
+
 # AI Football Intelligence Engine
 
-An n8n-based football intelligence workflow that converts verified API-Football match data into grounded, multi-format sports content using OpenAI.
+A standalone prototype for evidence-first match interpretation, player identity resolution and structured output validation. **It is distinct from the operational [TACTIC × AMER production platform](https://github.com/Badrna3om/tactic-ai-media-platform).**
+
+## Portfolio quick view
+
+**Evidence-First Football Analysis · Prototype**  
+[Workflow](workflow-overview.png) · [Structured report](post-match-intelligence-report.png)
+
+**What this proves:** fact-based data retrieval, identity matching, LLM validation and deterministic failure handling.
+
+> **Disclosure:** The repository is for public technical review. Operating credentials, private infrastructure, customer data and confidential business logic are excluded.
+
+---
 
 ## What It Does
 
