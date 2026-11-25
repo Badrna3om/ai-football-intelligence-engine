@@ -2,7 +2,17 @@
 
 # AI Football Intelligence Engine
 
-A standalone prototype for evidence-first match interpretation, player identity resolution and structured output validation. **It is distinct from the operational [TACTIC × AMER production platform](https://github.com/Badrna3om/tactic-ai-media-platform).**
+A standalone football-data intelligence workflow and an **operationally connected repository** that also contains media-rendering components and GitHub Actions used by TACTIC / AMER.
+
+**Repository scope:** The match-analysis workflow is a prototype; this same repository also hosts media automation source and event-triggered production workflows. It is **not a fully sanitized public mirror** of the TACTIC platform. The dedicated [TACTIC × AMER case study](https://github.com/Badrna3om/tactic-ai-media-platform) provides the public, non-technical portfolio overview.
+
+## Live integration and repository disclosure
+
+**Important:** This repository contains more than the standalone intelligence prototype described above. It also contains media-worker and rendering code, event-triggered GitHub Actions, and historical execution artifacts. Some GitHub Actions have been observed receiving real production tasks. **Do not disable, rename, move or delete those workflows without validating upstream dispatchers, credentials, callbacks and downstream consumers.**
+
+For readers interested in business outcomes and sanitized architecture rather than operating source, see the [TACTIC × AMER case study](https://github.com/Badrna3om/tactic-ai-media-platform).
+
+For contribution safety, scope boundaries and the maintenance process, read [SECURITY.md](SECURITY.md) and [REPOSITORY_SCOPE.md](REPOSITORY_SCOPE.md).
 
 ## Portfolio quick view
 
@@ -11,7 +21,7 @@ A standalone prototype for evidence-first match interpretation, player identity 
 
 **What this proves:** fact-based data retrieval, identity matching, LLM validation and deterministic failure handling.
 
-> **Disclosure:** The repository is for public technical review. Operating credentials, private infrastructure, customer data and confidential business logic are excluded.
+> **Disclosure:** This public repository includes operational media code and GitHub Actions. No live credentials are intended to be committed; however, public implementation details and past history should be treated as disclosed. Review [repository scope](REPOSITORY_SCOPE.md) before reuse.
 
 ---
 
