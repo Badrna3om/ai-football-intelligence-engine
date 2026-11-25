@@ -1,0 +1,49 @@
+# Credentials and local environment settings — never commit
+.env
+.env.*
+!.env.example
+*.pem
+*.p12
+*.pfx
+*.key
+id_rsa
+id_ed25519
+credentials.local.json
+secrets.local.json
+*.credentials.local.json
+*.secrets.local.json
+
+# Untracked runtime dumps and execution results
+*.log
+*.sqlite
+*.db
+dump.sql
+backup.sql
+*.bak
+*.tmp
+*.swp
+*.swo
+
+# JavaScript / TypeScript build artifacts
+node_modules/
+dist/
+build/
+coverage/
+.cache/
+.next/
+
+# Python caches
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# General OS / editor artifacts
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Do not ignore intentionally tracked test fixtures,
+# workflow dispatch request examples, or trigger files:
+# Existing live GitHub Actions may depend on those.
